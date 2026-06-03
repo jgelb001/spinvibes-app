@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1a0f">
+  <title>SpinVibes Golf</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <style>
+    :root {
+      --bg:       #0d1a0f;
+      --surface:  #14231a;
+      --surface2: #1a2d20;
+      --surface3: #1f3526;
+      --border:   rgba(255,255,255,0.08);
+      --cream:    #f0ead8;
+      --muted:    #8a9e8e;
+      --gold:     #c9a84c;
+      --gold-l:   #d4b86a;
+      --green:    #2d6a3f;
+      --green-b:  #1e4d2b;
+      --red:      #c0392b;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--cream); font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; }
+
+    /* ── LOADING ── */
+    #loading {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      z-index: 9999;
+    }
+    #loading .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; color: var(--gold); letter-spacing: 4px; }
+    #loading .sub  { font-size: 0.8rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+    #loading .spinner { width: 36px; height: 36px; border: 3px solid rgba(201,168,76,0.2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading .err { font-size: 0.85rem; color: #e87070; text-align: center; max-width: 280px; line-height: 1.5; display: none; }
+
+    /* ── APP SHELL ── */
+    #app { display: none; flex-direction: column; height: 100dvh; max-width: 500px; margin: 0 auto; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top, 0px));
+      border-bottom: 1px solid var(--border); background: var(--bg);
+    }
+    .topbar-brand { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--gold); letter-spacing: 3px; }
+    .topbar-user  { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+    .topbar-btn   { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 9px; font-size: 0.9rem; cursor: pointer; color: var(--cream); touch-action: manipulation; }
+
+    /* ── PAGES ── */
+    .pages { flex: 1; overflow: hidden; position: relative; }
+    .page  { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 16px 16px calc(80px + env(safe-area-inset-bottom, 0px)); display: none; }
+    .page.on { display: block; }
+
+    /* ── NAV ── */
+    .nav {
+      flex-shrink: 0; display: flex; background: var(--bg);
+      border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .nb {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 10px 4px 8px; background: none; border: none; color: var(--muted);
+      font-family: 'Outfit', sans-serif; font-size: 0.58rem; font-weight: 700;
+      letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; touch-action: manipulation;
+    }
+    .nb i { font-size: 1.35rem; }
+    .nb.on { color: var(--gold); }
+
+    /* ── COMPONENTS ── */
+    .hero { background: linear-gradient(135deg, var(--surface), var(--surface2)); border-radius: 16px; padding: 20px; margin-bottom: 16px; border: 1px solid rgba(201,168,76,0.15); }
+    .hero-greeting { font-size: 0.65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .hero-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; line-height: 1; color: var(--cream); margin-bottom: 6px; }
+    .hero-goal { font-size: 0.92rem; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+    .hero-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pill-tag { background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25); border-radius: 20px; padding: 3px 10px; font-size: 0.68rem; font-weight: 600; color: var(--gold); }
+    .pill-tag.green { background: rgba(45,106,63,0.15); border-color: rgba(45,106,63,0.3); color: #6ec98a; }
+
+    .section-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; margin-top: 20px; }
+    .card { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
+    .card-title { font-weight: 700; font-size: 0.88rem; color: var(--cream); margin-bottom: 4px; }
+    .card-body  { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .qc { background: var(--surface); border-radius: 14px; padding: 16px 14px; border: 1px solid var(--border); cursor: pointer; touch-action: manipulation; }
+    .qc:active { background: var(--surface2); }
+    .qc-icon { font-size: 1.5rem; color: var(--gold); margin-bottom: 6px; }
+    .qc-title { font-weight: 700; font-size: 0.85rem; color: var(--cream); }
+    .qc-sub   { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+    .stat-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .stat { flex: 1; background: var(--surface); border-radius: 10px; padding: 12px 8px; text-align: center; border: 1px solid var(--border); }
+    .stat-n { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; color: var(--gold); line-height: 1; }
+    .stat-l { font-size: 0.58rem; color: var(--muted); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px; }
+
+    /* ── CADDIE ── */
+    .caddie-wrap { display: flex; flex-direction: column; height: calc(100dvh - 120px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); }
+    .caddie-msgs { flex: 1; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+    .msg { padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; line-height: 1.55; max-width: 88%; }
+    .msg.user { background: var(--green); color: #e8f5ec; align-self: flex-end; border-radius: 12px 12px 2px 12px; }
+    .msg.caddie { background: var(--surface2); color: var(--cream); align-self: flex-start; border-radius: 12px 12px 12px 2px; border: 1px solid var(--border); }
+    .msg.system { background: rgba(201,168,76,0.08); color: var(--muted); align-self: center; font-size: 0.75rem; border: 1px solid rgba(201,168,76,0.15); border-radius: 8px; text-align: center; max-width: 100%; }
+    .caddie-input-row { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .caddie-input-row textarea { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--cream); font-family: 'Outfit', sans-serif; font-size: 0.88rem; resize: none; outline: none; }
+    .caddie-input-row button { background: var(--green); border: none; border-radius: 10px; padding: 10px 16px; color: #e8f5ec; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+
+    .btn-primary { background: var(--gold); border: none; border-radius: 12px; padding: 14px 20px; color: #1a1300; font-family: 'Outfit', sans-serif; font-size: 0.92rem; font-weight: 700; cursor: pointer; width: 100%; touch-action: manipulation; }
+    .btn-ghost   { background: none; border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; color: var(--cream); font-family: 'Outfit', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; width: 100%; touch-action: manipulation; }
+    .modal-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--cream); font-family: 'Outfit', sans-serif; font-size: 0.92rem; outline: none; margin-bottom: 12px; }
+    .modal-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: block; }
+
+    /* ── ROUND MODAL ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.7); align-items: flex-end; }
+    .modal-overlay.on { display: flex; }
+    .modal-sheet { background: var(--bg); border-radius: 20px 20px 0 0; padding: 24px 20px calc(24px + env(safe-area-inset-bottom,0px)); width: 100%; max-height: 85dvh; overflow-y: auto; border-top: 1px solid var(--border); }
+    .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+    .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; color: var(--gold); margin-bottom: 16px; }
+
+    .score-chip { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-size: 0.75rem; font-weight: 700; }
+    .sc-eagle  { background: rgba(167,139,250,0.2); color: #a78bfa; }
+    .sc-birdie { background: rgba(96,165,250,0.2); color: #60a5fa; }
+    .sc-par    { background: rgba(45,106,63,0.2);  color: #6ec98a; }
+    .sc-bogey  { background: rgba(240,234,216,0.1); color: var(--cream); }
+    .sc-double { background: rgba(192,57,43,0.2);  color: #e87070; }
+    .sc-worse  { background: rgba(255,68,68,0.2);  color: #ff4444; }
+
+    /* ── RANGE ── */
+    .drill { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 1px solid var(--border); }
+    .drill-title { font-weight: 700; font-size: 0.88rem; color: var(--gold); margin-bottom: 4px; }
+    .drill-body  { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── MY GAME ── */
+    .round-card { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
+    .round-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .round-score { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--cream); line-height: 1; }
+    .round-vs { font-size: 0.72rem; font-weight: 700; }
+    .round-meta { font-size: 0.75rem; color: var(--muted); }
+
+    .toast { position: fixed; bottom: calc(80px + env(safe-area-inset-bottom,0px) + 12px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 8px 18px; font-size: 0.82rem; color: var(--cream); opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 9000; white-space: nowrap; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading">
+  <div class="logo">SPINVIBES</div>
+  <div class="sub">Loading your app…</div>
+  <div class="spinner"></div>
+  <div class="err" id="load-err"></div>
+</div>
+
+<!-- App shell (shown after profile loads) -->
+<div id="app">
+  <div class="topbar">
+    <div>
+      <div class="topbar-brand">SPINVIBES</div>
+      <div class="topbar-user" id="topbar-user"></div>
+    </div>
+    <button class="topbar-btn" onclick="toggleDark()" id="dark-btn"><i class="ti ti-sun"></i></button>
+  </div>
+
+  <div class="pages">
+    <div class="page on" id="pg-home"></div>
+    <div class="page" id="pg-caddie"></div>
+    <div class="page" id="pg-range"></div>
+    <div class="page" id="pg-mygame"></div>
+  </div>
+
+  <nav class="nav">
+    <button class="nb on" onclick="goPage('home')" id="nb-home"><i class="ti ti-home"></i>Home</button>
+    <button class="nb" onclick="goPage('caddie')" id="nb-caddie"><i class="ti ti-message-circle"></i>Caddie</button>
+    <button class="nb" onclick="goPage('range')" id="nb-range"><i class="ti ti-run"></i>Range</button>
+    <button class="nb" onclick="goPage('mygame')" id="nb-mygame"><i class="ti ti-chart-line"></i>My Game</button>
+  </nav>
+</div>
+
+<!-- Round entry modal -->
+<div class="modal-overlay" id="round-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log a Round</div>
+    <div id="round-modal-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://zairvjyiwhajsulefyoi.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphaXJ2anlpd2hhanN1bGVmeW9pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMDkxODAsImV4cCI6MjA5MTY4NTE4MH0.AAdJfqSGHMergPgL4tEoBMn0Wr5d8D1NuxhPMonp_60';
+const CADDIE_URL    = 'https://spinvibes-caddie.spinvibes.workers.dev';
+const WORKER_SECRET = 'sv-golf-2026-xK9mPqR4nBzT';
+const SB_HEADERS    = { 'Content-Type': 'application/json', apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
+
+// ── PROFILE STATE ─────────────────────────────────────────────────
+let profile  = null;   // loaded from Supabase guide_users
+let userId   = null;   // UUID from URL
+let rounds   = [];     // loaded from localStorage
+let caddieHistory = [];
+
+// ── GOAL / SKILL LABELS ───────────────────────────────────────────
+const GOAL_LABEL  = { break100:'Break 100', break90:'Break 90', break80:'Break 80', consistency:'More Consistent', beginner:'Learn the Game', fun:'Have Fun', return:'Get Back Out There' };
+const SKILL_LABEL = { beginner:'Beginner', some:'Some Experience', mid:'Mid-Handicap', low:'Low Handicap', advanced:'Advanced' };
+const HAND_LABEL  = { l:'Left-handed', r:'Right-handed', left:'Left-handed', right:'Right-handed' };
+const FREQ_LABEL  = { rare:'2× / month', weekly:'Once a week', multi:'3× a week', daily:'Almost daily' };
+
+// ── BOOT ─────────────────────────────────────────────────────────
+(async () => {
+  const P = new URLSearchParams(location.search);
+  userId = P.get('u');
+
+  if (!userId || userId === 'preview') {
+    // Build a minimal profile from URL params for preview
+    profile = {
+      name:      decodeURIComponent(P.get('n') || 'Golfer'),
+      hand:      P.get('h') || 'r',
+      skill:     P.get('s') || 'mid',
+      goal:      P.get('g') || 'fun',
+      age:       P.get('a') || 'adult',
+      weaknesses: [],
+      freq:      'weekly',
+      equip:     'full',
+      bag:       '',
+      coaching_plan: null,
+    };
+    userId = 'preview_' + Date.now();
+    bootApp();
+    return;
+  }
+
+  // Try loading from localStorage cache first (fast boot)
+  const cached = localStorage.getItem('sv-profile-' + userId);
+  if (cached) {
+    try { profile = JSON.parse(cached); bootApp(); } catch(e) {}
+  }
+
+  // Always fetch fresh from Supabase
+  try {
+    const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}&select=*&limit=1`, { headers: SB_HEADERS });
+    const rows = await res.json();
+    if (rows && rows[0]) {
+      profile = rows[0];
+      localStorage.setItem('sv-profile-' + userId, JSON.stringify(profile));
+      if (!cached) bootApp(); else refreshHome();
+    } else if (!cached) {
+      showError("Couldn't find your profile. Check the link and try again.");
+    }
+  } catch(e) {
+    if (!cached) showError("No connection. Check your signal and try again.");
+  }
+})();
+
+function showError(msg) {
+  document.querySelector('#loading .spinner').style.display = 'none';
+  document.querySelector('#loading .sub').style.display = 'none';
+  const e = document.getElementById('load-err');
+  e.textContent = msg;
+  e.style.display = '';
+}
+
+function bootApp() {
+  // Load rounds from localStorage
+  rounds = loadRounds();
+  // Register service worker
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  // Render
+  renderHome();
+  renderCaddie();
+  renderRange();
+  renderMyGame();
+  // Update topbar
+  document.getElementById('topbar-user').textContent = profile.name.toUpperCase();
+  // Show app
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────
+function goPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('on'));
+  document.getElementById('pg-' + id).classList.add('on');
+  document.getElementById('nb-' + id).classList.add('on');
+}
+
+function toggleDark() {
+  document.body.classList.toggle('sv-light');
+}
+
+// ── HOME ──────────────────────────────────────────────────────────
+function renderHome() {
+  const p = profile;
+  const goal  = GOAL_LABEL[p.goal]  || p.goal  || 'Enjoy the Game';
+  const skill = SKILL_LABEL[p.skill] || p.skill || '';
+  const hand  = HAND_LABEL[p.hand]   || '';
+  const freq  = FREQ_LABEL[p.freq]   || '';
+  const rs    = rounds.filter(r => !r.practice);
+  const best  = rs.length ? Math.min(...rs.map(r => r.total)) : null;
+  const last  = rs.length ? rs[rs.length - 1] : null;
+
+  const weakMap = { full_swing:'Full Swing', short_game:'Short Game', putting:'Putting', course_mgmt:'Course Management', mental:'Mental Game', fitness:'Fitness', consistency:'Consistency' };
+  const weakPills = (p.weaknesses || []).map(w => `<span class="pill-tag">${weakMap[w] || w}</span>`).join('');
+
+  const coachSection = p.coaching_plan ? `
+    <div class="section-title">Your Coaching Plan</div>
+    <div class="card">
+      <div class="card-body">${p.coaching_plan.replace(/\n/g,'<br>')}</div>
+    </div>` : '';
+
+  document.getElementById('pg-home').innerHTML = `
+    <div class="hero">
+      <div class="hero-greeting">Welcome back</div>
+      <div class="hero-name">${p.name.toUpperCase()}</div>
+      <div class="hero-goal">🎯 ${goal}</div>
+      <div class="hero-pills">
+        ${hand ? `<span class="pill-tag">${hand}</span>` : ''}
+        ${skill ? `<span class="pill-tag green">${skill}</span>` : ''}
+        ${freq  ? `<span class="pill-tag">${freq}</span>` : ''}
+        ${weakPills}
+      </div>
+    </div>
+
+    ${best || last ? `<div class="stat-row">
+      ${best ? `<div class="stat"><div class="stat-n">${best}</div><div class="stat-l">Best Score</div></div>` : ''}
+      ${last ? `<div class="stat"><div class="stat-n">${last.total}</div><div class="stat-l">Last Round</div></div>` : ''}
+      <div class="stat"><div class="stat-n">${rs.length}</div><div class="stat-l">Rounds</div></div>
+    </div>` : ''}
+
+    <div class="quick-grid">
+      <div class="qc" onclick="goPage('caddie')">
+        <div class="qc-icon"><i class="ti ti-message-circle"></i></div>
+        <div class="qc-title">Ask Caddie</div>
+        <div class="qc-sub">Club, strategy, tips</div>
+      </div>
+      <div class="qc" onclick="goPage('range')">
+        <div class="qc-icon"><i class="ti ti-run"></i></div>
+        <div class="qc-title">Practice Plan</div>
+        <div class="qc-sub">Today's session</div>
+      </div>
+      <div class="qc" onclick="openRoundModal()">
+        <div class="qc-icon"><i class="ti ti-flag-2"></i></div>
+        <div class="qc-title">Log a Round</div>
+        <div class="qc-sub">Track your score</div>
+      </div>
+      <div class="qc" onclick="goPage('mygame')">
+        <div class="qc-icon"><i class="ti ti-chart-line"></i></div>
+        <div class="qc-title">My Game</div>
+        <div class="qc-sub">History &amp; stats</div>
+      </div>
+    </div>
+
+    ${coachSection}
+
+    <div class="section-title">Your Bag</div>
+    ${renderBagSection()}
+  `;
+}
+
+function refreshHome() {
+  if (document.getElementById('pg-home').classList.contains('on')) renderHome();
+}
+
+function renderBagSection() {
+  const bag = profile.bag || '';
+  const distances = profile.distances || {};
+  if (!bag && !Object.keys(distances).length) {
+    return `<div class="card"><div class="card-body" style="color:var(--muted);">No bag info yet — update your guide to add your clubs.</div></div>`;
+  }
+  const distRows = Object.entries(distances).map(([k,v]) => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.83rem;">
+      <span style="color:var(--muted);">${k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span>
+      <span style="color:var(--cream);font-weight:600;">${v} yds</span>
+    </div>`).join('');
+  return `<div class="card">
+    ${bag ? `<div class="card-body" style="margin-bottom:${Object.keys(distances).length?'12px':'0'}">${bag}</div>` : ''}
+    ${distRows}
+  </div>`;
+}
+
+// ── CADDIE ────────────────────────────────────────────────────────
+function renderCaddie() {
+  const p = profile;
+  const bagStr = p.bag || 'standard set';
+  const distStr = p.distances ? Object.entries(p.distances).map(([k,v])=>`${k}: ${v}yds`).join(', ') : '';
+  const systemPrompt = `You are a concise golf caddie for ${p.name}, a ${HAND_LABEL[p.hand]||'right-handed'} golfer (${SKILL_LABEL[p.skill]||p.skill}). Their goal: ${GOAL_LABEL[p.goal]||p.goal}. Bag: ${bagStr}${distStr ? '. Distances: ' + distStr : ''}. Give short, direct answers (2-4 sentences max). Lead with the key number or club recommendation.`;
+
+  document.getElementById('pg-caddie').innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:4px;">CADDIE</div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:16px;">Ask about club selection, course strategy, or any golf question.</div>
+    <div class="caddie-wrap" id="caddie-wrap">
+      <div class="caddie-msgs" id="caddie-msgs">
+        <div class="msg system">Ask anything — yardage, club, strategy, tips.</div>
+      </div>
+      <div class="caddie-input-row">
+        <textarea id="caddie-input" rows="2" placeholder="135 yards, slight uphill, light wind..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCaddie();}"></textarea>
+        <button onclick="sendCaddie()"><i class="ti ti-send" style="font-size:1.1rem;"></i></button>
+      </div>
+    </div>
+    <input type="hidden" id="caddie-system" value="${systemPrompt.replace(/"/g,'&quot;')}">
+  `;
+}
+
+async function sendCaddie() {
+  const input   = document.getElementById('caddie-input');
+  const msgsEl  = document.getElementById('caddie-msgs');
+  const system  = document.getElementById('caddie-system').value;
+  const msg     = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  input.disabled = true;
+
+  // Add user message
+  msgsEl.innerHTML += `<div class="msg user">${escHtml(msg)}</div>`;
+  const thinking = document.createElement('div');
+  thinking.className = 'msg caddie';
+  thinking.textContent = '…';
+  msgsEl.appendChild(thinking);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+
+  caddieHistory.push({ role: 'user', content: msg });
+  if (caddieHistory.length > 12) caddieHistory = caddieHistory.slice(-12);
+
+  try {
+    const res  = await fetch(CADDIE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-SpinVibes-Token': WORKER_SECRET },
+      body: JSON.stringify({ messages: caddieHistory, systemPrompt: system }),
+    });
+    const data = await res.json();
+    const reply = data.reply || "Sorry, try again.";
+    caddieHistory.push({ role: 'assistant', content: reply });
+    thinking.textContent = reply;
+  } catch(e) {
+    thinking.textContent = "No signal — check connection.";
+  }
+  input.disabled = false;
+  input.focus();
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+// ── RANGE ─────────────────────────────────────────────────────────
+function renderRange() {
+  const skill = profile.skill || 'mid';
+  const goal  = profile.goal  || 'fun';
+  const hand  = profile.hand  === 'l' || profile.hand === 'left' ? 'left' : 'right';
+  const lead  = hand === 'left' ? 'right' : 'left';
+
+  const plans = {
+    beginner: [
+      { title:'Setup Drill — 10 min', body:`Work on grip, stance, and ball position before hitting any balls. Place a club on the ground pointing at your target to check alignment. ${hand==='left'?'Lead hand is your RIGHT hand on the grip.':'Lead hand is your LEFT hand on the grip.'}` },
+      { title:'Chip & Putt — 15 min', body:'Start close to the green. 20 chips from 10 yards, focusing on consistent contact. Then 20 putts from 6 feet — make 15 before moving back.' },
+      { title:'Half Swings — 15 min', body:'Hit 30 balls with a 7-iron or 8-iron at 50% speed. Focus on making solid contact, not distance. If it flies straight, you\'re doing it right.' },
+      { title:'Full Swings — 10 min', body:'10 balls with your most comfortable iron. Pick a specific target, not just "that direction." Finish by hitting 5 balls with your driver — swing easy.' },
+    ],
+    mid: [
+      { title:'Warmup — 10 min', body:`Start with wedges: 10 easy chips, 10 half-swings at 60%, 10 full swings. Loosen up before going to longer clubs. Focus on making solid contact and feeling the rhythm.` },
+      { title:'Work Your Misses — 20 min', body:`Identify your typical miss (pull left, push right?) and work the opposite shape intentionally. Hit 10 balls trying to work the ball right, 10 left. This builds shot-shaping awareness.` },
+      { title:'Scoring Clubs — 15 min', body:'Hit 30 balls with clubs you use inside 150 yards: PW, 9i, 8i. Track your dispersion — how tight is your pattern? Distance control is more important than max distance at this stage.' },
+      { title:'Driver Confidence — 5 min', body:`10 driver balls. Pick a specific target corridor (fairway = 30 yards wide). Count how many land in the corridor. Goal: 7/10. ${hand==='left'?'Watch for the pull-hook — common for lefties when tempo gets fast.':''}` },
+    ],
+    low: [
+      { title:'Purposeful Warmup — 10 min', body:'Each warmup swing has a specific shot shape. Start with a low punch, then a draw, then a fade. Get your brain engaged immediately rather than just hitting balls.' },
+      { title:'Pressure Drill — 20 min', body:`Hit to specific yardage targets: 100, 125, 150, 175 yards in rotation. One chance per target. Track your misses — distance or direction? This simulates course pressure.` },
+      { title:'Pre-Round Simulation — 20 min', body:'Play the first 3 holes of your home course in your head. Hit the tee shot, then the approach from that distance, then a chip or pitch. Full simulation, not just random balls.' },
+      { title:'Short Game — 10 min', body:'10 bunker shots if available. 10 chips from tight lies. 10 putts from 10 feet. Strong scoring game wins.' },
+    ],
+  };
+
+  const drillSet = plans[skill] || plans.mid;
+
+  const goalTip = {
+    break100: 'Focus on making contact and getting the ball airborne consistently. Distance doesn\'t matter yet.',
+    break90:  'Work on eliminating blow-up holes. One great shot per hole is enough — the goal is no 8s or 9s.',
+    break80:  'You\'re close. Focus on lag putting and the 100-150 yard range — these are where your shots are leaking.',
+    consistency: 'Same pre-shot routine every time. Same tempo. Consistency is built through repetition, not trying harder.',
+    beginner: 'Learn the fundamentals — grip, stance, contact. Everything else follows.',
+    fun:      'Hit the shots you enjoy. Practice should feel good.',
+    return:   'Your muscle memory is still there. Focus on rhythm and contact, not distance.',
+  }[goal] || 'Quality over quantity — one focused session beats three lazy ones.';
+
+  document.getElementById('pg-range').innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:4px;">PRACTICE PLAN</div>
+    <div style="font-size:0.75rem;color:var(--muted);margin-bottom:16px;">${SKILL_LABEL[skill]||skill} · ${GOAL_LABEL[goal]||goal}</div>
+
+    <div class="card" style="border-color:rgba(201,168,76,0.25);background:rgba(201,168,76,0.05);margin-bottom:16px;">
+      <div class="card-title" style="color:var(--gold);">Today's Focus</div>
+      <div class="card-body">${goalTip}</div>
+    </div>
+
+    <div class="section-title">Session Plan</div>
+    ${drillSet.map(d => `<div class="drill"><div class="drill-title">${d.title}</div><div class="drill-body">${d.body}</div></div>`).join('')}
+
+    <div class="section-title">Quick Drills</div>
+    <div class="card">
+      <div class="card-title">10-Shot Focus Drill</div>
+      <div class="card-body">Pick one swing thought. Hit 10 balls with ONLY that thought. No changing mid-drill. Rate each shot 1-5. Average 3.5+ = drill complete, move on.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Alignment Check</div>
+      <div class="card-body">Place a club on the ground pointing at your target. Step back and check that your feet, hips, and shoulders are parallel to the club — not aimed at the target. ${hand==='left'?'As a lefty, you\'re standing on the opposite side — your shoulders open even more easily.':''}</div>
+    </div>
+  `;
+}
+
+// ── MY GAME ───────────────────────────────────────────────────────
+function renderMyGame() {
+  const rs = rounds.slice().reverse();
+  const scored = rs.filter(r => !r.practice);
+  const best   = scored.length ? Math.min(...scored.map(r => r.total)) : null;
+  const avg    = scored.length ? Math.round(scored.reduce((a,r) => a + r.total, 0) / scored.length) : null;
+
+  document.getElementById('pg-mygame').innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:4px;">MY GAME</div>
+    ${scored.length ? `
+    <div class="stat-row" style="margin-top:8px;">
+      <div class="stat"><div class="stat-n">${best}</div><div class="stat-l">Best</div></div>
+      <div class="stat"><div class="stat-n">${avg}</div><div class="stat-l">Average</div></div>
+      <div class="stat"><div class="stat-n">${scored.length}</div><div class="stat-l">Rounds</div></div>
+    </div>` : ''}
+    <button class="btn-primary" style="margin-bottom:16px;" onclick="openRoundModal()">
+      <i class="ti ti-flag-2" style="vertical-align:-2px;margin-right:6px;"></i> Log a Round
+    </button>
+    ${rs.length ? rs.map(r => roundCard(r)).join('') : `<div class="card"><div class="card-body" style="color:var(--muted);text-align:center;padding:12px 0;">No rounds yet — log your first round above.</div></div>`}
+  `;
+}
+
+function roundCard(r) {
+  const vsRaw = r.total - (r.par || 72);
+  const vs    = vsRaw === 0 ? 'E' : (vsRaw > 0 ? '+' + vsRaw : String(vsRaw));
+  const vsColor = vsRaw < 0 ? '#60a5fa' : vsRaw === 0 ? '#6ec98a' : vsRaw <= 5 ? 'var(--cream)' : '#e87070';
+  return `<div class="round-card">
+    <div class="round-card-header">
+      <div>
+        <div style="font-weight:700;font-size:0.9rem;color:var(--cream);">${r.course || 'Golf Round'}</div>
+        <div class="round-meta">${r.date || ''} · ${r.holes || 18} holes${r.practice ? ' · Practice' : ''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="round-score">${r.total}</div>
+        <div class="round-vs" style="color:${vsColor};">${r.practice ? '' : vs}</div>
+      </div>
+    </div>
+    ${r.notes ? `<div style="font-size:0.8rem;color:var(--muted);border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">${escHtml(r.notes)}</div>` : ''}
+    <button onclick="deleteRound('${r.id}')" style="background:none;border:none;color:rgba(192,57,43,0.5);font-size:0.72rem;cursor:pointer;padding:4px 0 0;touch-action:manipulation;">Delete</button>
+  </div>`;
+}
+
+// ── ROUND MODAL ───────────────────────────────────────────────────
+function openRoundModal() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('round-modal-body').innerHTML = `
+    <label class="modal-label">Date</label>
+    <input type="date" id="rm-date" class="modal-input" value="${today}">
+    <label class="modal-label">Course (optional)</label>
+    <input type="text" id="rm-course" class="modal-input" placeholder="Course name">
+    <label class="modal-label">Total Score</label>
+    <input type="number" id="rm-score" class="modal-input" placeholder="e.g. 92" inputmode="numeric">
+    <label class="modal-label">Par</label>
+    <input type="number" id="rm-par" class="modal-input" value="72" inputmode="numeric">
+    <label class="modal-label">Holes</label>
+    <select id="rm-holes" class="modal-input">
+      <option value="18">18 holes</option>
+      <option value="9">9 holes</option>
+    </select>
+    <label class="modal-label">Notes (optional)</label>
+    <textarea id="rm-notes" class="modal-input" rows="2" placeholder="How'd it go?"></textarea>
+    <button class="btn-primary" onclick="saveRound()" style="margin-bottom:10px;">Save Round</button>
+    <button class="btn-ghost" onclick="closeRoundModal()">Cancel</button>
+  `;
+  document.getElementById('round-modal').classList.add('on');
+}
+
+function closeRoundModal() {
+  document.getElementById('round-modal').classList.remove('on');
+}
+
+function saveRound() {
+  const score = parseInt(document.getElementById('rm-score').value);
+  if (!score || score < 1) { showToast('Enter a score', 'error'); return; }
+  const round = {
+    id:     Date.now().toString(),
+    date:   document.getElementById('rm-date').value,
+    course: document.getElementById('rm-course').value.trim() || '',
+    total:  score,
+    par:    parseInt(document.getElementById('rm-par').value) || 72,
+    holes:  parseInt(document.getElementById('rm-holes').value) || 18,
+    notes:  document.getElementById('rm-notes').value.trim(),
+  };
+  rounds.push(round);
+  persistRounds();
+  closeRoundModal();
+  renderMyGame();
+  refreshHome();
+  showToast('Round saved ✓');
+}
+
+function deleteRound(id) {
+  if (!confirm('Delete this round?')) return;
+  rounds = rounds.filter(r => r.id !== id);
+  persistRounds();
+  renderMyGame();
+  refreshHome();
+  showToast('Deleted');
+}
+
+// ── STORAGE ───────────────────────────────────────────────────────
+const ROUNDS_KEY = () => 'sv-rounds-' + (userId || 'guest');
+function loadRounds()   { try { return JSON.parse(localStorage.getItem(ROUNDS_KEY()) || '[]'); } catch(e) { return []; } }
+function persistRounds(){ try { localStorage.setItem(ROUNDS_KEY(), JSON.stringify(rounds)); } catch(e) {} }
+
+// ── UTILS ─────────────────────────────────────────────────────────
+function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type === 'error' ? 'rgba(192,57,43,0.9)' : 'var(--surface2)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// Close round modal on backdrop tap
+document.getElementById('round-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeRoundModal();
+});
+</script>
+</body>
+</html>
