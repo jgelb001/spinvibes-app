@@ -179,16 +179,18 @@
     <div class="page on" id="pg-home"></div>
     <div class="page" id="pg-caddie"></div>
     <div class="page" id="pg-range"></div>
+    <div class="page" id="pg-stretch"></div>
+    <div class="page" id="pg-shortgame"></div>
     <div class="page" id="pg-strategy"></div>
     <div class="page" id="pg-mygame"></div>
   </div>
 
   <nav class="nav">
-    <button class="nb on" onclick="goPage('home')"     id="nb-home">    <i class="ti ti-home"></i>Home</button>
-    <button class="nb"    onclick="goPage('caddie')"   id="nb-caddie">  <i class="ti ti-message-circle"></i>Caddie</button>
-    <button class="nb"    onclick="goPage('range')"    id="nb-range">   <i class="ti ti-run"></i>Range</button>
-    <button class="nb"    onclick="goPage('strategy')" id="nb-strategy"><i class="ti ti-map-2"></i>Strategy</button>
-    <button class="nb"    onclick="goPage('mygame')"   id="nb-mygame">  <i class="ti ti-chart-line"></i>My Game</button>
+    <button class="nb on" onclick="goPage('home')"      id="nb-home">      <i class="ti ti-home"></i>Home</button>
+    <button class="nb"    onclick="goPage('caddie')"    id="nb-caddie">    <i class="ti ti-message-circle"></i>Caddie</button>
+    <button class="nb"    onclick="goPage('range')"     id="nb-range">     <i class="ti ti-run"></i>Range</button>
+    <button class="nb"    onclick="goPage('shortgame')" id="nb-shortgame"> <i class="ti ti-target"></i>Short Game</button>
+    <button class="nb"    onclick="goPage('mygame')"    id="nb-mygame">    <i class="ti ti-chart-line"></i>My Game</button>
   </nav>
 </div>
 
@@ -278,7 +280,7 @@ function showErr(m) {
 function bootApp() {
   rounds = loadRounds();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  renderHome(); renderCaddie(); renderRange(); renderStrategy(); renderMyGame();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderMyGame();
   document.getElementById('tb-user').textContent = profile.name.toUpperCase();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -337,7 +339,7 @@ function renderHome() {
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Start Round</div><div class="qc-sub">Track hole by hole</div></div>
       <div class="qc" onclick="goPage('caddie')"><div class="qc-icon"><i class="ti ti-message-circle"></i></div><div class="qc-title">Ask Caddie</div><div class="qc-sub">Club &amp; strategy</div></div>
       <div class="qc" onclick="goPage('range')"><div class="qc-icon"><i class="ti ti-run"></i></div><div class="qc-title">Practice Plan</div><div class="qc-sub">Today's session</div></div>
-      <div class="qc" onclick="goPage('strategy')"><div class="qc-icon"><i class="ti ti-map-2"></i></div><div class="qc-title">Strategy</div><div class="qc-sub">Course management</div></div>
+      <div class="qc" onclick="goPage('shortgame')"><div class="qc-icon"><i class="ti ti-target"></i></div><div class="qc-title">Short Game</div><div class="qc-sub">Chips &amp; putts</div></div>
     </div>
 
     ${p.coaching_plan?`<div class="sec-title">Your Coaching Plan</div><div class="card"><div class="card-body">${p.coaching_plan.replace(/\n/g,'<br>')}</div></div>`:''}
@@ -416,8 +418,20 @@ function renderRange() {
   const tip = {break100:'Contact and airborne — nothing else matters yet.',break90:'No blow-up holes. One clean shot per hole. Eliminate the 8s and 9s.',break80:'Lag putting and the 100-150 range. That\'s where your shots are leaking.',consistency:'Same routine every time. Same tempo. Repetition builds consistency.',beginner:'Fundamentals first: grip, stance, contact.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'Your muscle memory is there. Rhythm and contact — not distance.'}[goal]||'Quality over quantity.';
 
   document.getElementById('pg-range').innerHTML = `
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">PRACTICE PLAN</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">RANGE & WARM-UP</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${SKILL[skill]||skill} · ${GOAL[goal]||goal}</div>
+
+    <div class="card" style="border-color:rgba(201,168,76,0.3);background:rgba(201,168,76,0.05);margin-bottom:14px;">
+      <div class="card-title" style="color:var(--gold);margin-bottom:8px;"><i class="ti ti-accessibility" style="vertical-align:-2px;margin-right:6px;"></i>Pre-Round Warm-Up — 5 min</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;color:var(--muted);">
+        <div><strong style="color:var(--cream);">1. Torso rotations — 30 sec.</strong> Club across shoulders. Rotate slowly — this is your swing motion.</div>
+        <div><strong style="color:var(--cream);">2. Hip circles — 30 sec each.</strong> Hands on hips, big slow circles. Loose hips = better rotation.</div>
+        <div><strong style="color:var(--cream);">3. Shoulder cross-body — 20 sec each.</strong> Pull one arm across chest. Prevents mid-round tightness.</div>
+        <div><strong style="color:var(--cream);">4. Wrist flexion/extension — 20 sec each.</strong> Both wrists. Forearms fatigue faster than you think.</div>
+        <div><strong style="color:var(--cream);">5. Hamstring hinge — 30 sec.</strong> Hinge forward from hips. This is your address position.</div>
+        <div style="color:var(--green);font-weight:600;"><strong>6. Slow practice swings — 1 min.</strong> 10 swings at 50% speed. No ball. Most important minute of your session.</div>
+      </div>
+    </div>
     <div class="card" style="border-color:rgba(201,168,76,0.25);background:rgba(201,168,76,0.05);margin-bottom:14px;">
       <div class="card-title" style="color:var(--gold);">Today's Focus</div>
       <div class="card-body">${tip}</div>
@@ -881,7 +895,58 @@ function saveCompletedRound() {
   unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
 }
 
-// ── MY GAME ──────────────────────────────────────────────────────
+// ── SHORT GAME ──────────────────────────────────────────────────────
+function renderShortGame() {
+  const skill = profile.skill||'mid';
+  const hand  = profile.hand==='l'||profile.hand==='left'?'left':'right';
+
+  const chipping = skill==='beginner' ? `
+    <div class="drill"><div class="drill-t">The One Chip to Learn First — Bump &amp; Run</div><div class="drill-b">9-iron, ball back in stance, weight forward, hands ahead. Firm wrists — push it like a long putt. Ball pops up and runs to the hole. Think: "Putt it with a 9-iron."</div></div>
+    <div class="drill"><div class="drill-t">Gate Drill</div><div class="drill-b">Two tees 6 inches in front of the ball, one each side. Swing through without hitting them. Trains a straight club path every time.</div></div>
+    <div class="drill"><div class="drill-t">3-2-1 Challenge</div><div class="drill-b">3 balls from 10 yards, 2 from 20, 1 from 30. Get each within 3 feet of the hole. Track your score out of 6 — beat it next time.</div></div>` :
+  `<div class="drill"><div class="drill-t">Tee Drill</div><div class="drill-b">Place a tee 1.5 feet onto the green from the fringe. Drop 10 balls and chip, trying to land on the tee. 6/10 = consistent chipper. Once you hit it, your chipping is repeatable enough to score with.</div></div>
+    <div class="drill"><div class="drill-t">Bump &amp; Run vs. Flop Decision</div><div class="drill-b">Rule: if you can run it, run it. Use loft only when you have to clear something or need to stop quickly. Most amateurs use too much loft and lose distance control.</div></div>
+    <div class="drill"><div class="drill-t">Clock Drill</div><div class="drill-b">From 20 yards, hit chips to positions at 3, 6, 9, and 12 o'clock around the hole. Forces you to control distance in all directions, not just straight in.</div></div>`;
+
+  const putting = skill==='beginner' ? `
+    <div class="drill"><div class="drill-t">3-6-9 Ladder</div><div class="drill-b">3 balls at 3ft, 3 at 6ft, 3 at 9ft. Make all three 3-footers. 2-putt the 6-footers. Lag the 9-footers inside 2 feet. Goal: 12 putts or fewer out of 9 balls.</div></div>
+    <div class="drill"><div class="drill-t">Speed Control — Fringe Putts</div><div class="drill-b">5 putts from 10 feet trying to stop within 1 foot of the fringe. Then 20 feet. Then 30 feet. No hole — pure speed. This is how you eliminate 3-putts.</div></div>` :
+  `<div class="drill"><div class="drill-t">Gate Putting</div><div class="drill-b">Two tees just wider than your putter head, 6 inches in front of the ball. Make 10 in a row from 6 feet without hitting the gates. Forces the pure stroke.</div></div>
+    <div class="drill"><div class="drill-t">Lag Circuit — 10, 20, 30 ft</div><div class="drill-b">5 balls from each distance. Goal: every ball within 18 inches of the hole. 2-putts are wins. No 3-putts allowed. This is where rounds are saved or lost.</div></div>`;
+
+  const club = `<div class="card">
+    <div class="card-body" style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
+      <div><span style="color:var(--gold);font-weight:700;">9-iron</span><span style="color:var(--muted);"> — Bump &amp; run. Low, lots of roll. Use most of the time.</span></div>
+      <div><span style="color:var(--gold);font-weight:700;">Pitching wedge</span><span style="color:var(--muted);"> — More loft, hops up sooner. Good when green is firm.</span></div>
+      <div><span style="color:var(--gold);font-weight:700;">Sand wedge</span><span style="color:var(--muted);"> — Bunkers, thick rough, need to fly something. Not your first choice off clean lies.</span></div>
+    </div>
+  </div>`;
+
+  document.getElementById('pg-shortgame').innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">SHORT GAME</div>
+    <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">Chipping · Putting · Around the Green</div>
+
+    <div class="card" style="border-color:rgba(201,168,76,0.25);background:rgba(201,168,76,0.05);">
+      <div class="card-title" style="color:var(--gold);">The Scoring Truth</div>
+      <div class="card-body">Golf is won around the green. Pros miss 4–6 greens per round — their scores come from chipping close and making putts. The fastest way to lower your score is not hitting it farther. It's getting up and down.</div>
+    </div>
+
+    <div class="sec-title">Chipping</div>
+    ${chipping}
+
+    <div class="sec-title">Putting</div>
+    ${putting}
+
+    <div class="sec-title">Club Selection Around the Green</div>
+    ${club}
+
+    <div class="sec-title">Strategy</div>
+    <div class="drill"><div class="drill-t">Always take the easy chip</div><div class="drill-b">Never short-side yourself. Miss on the side with the most green to work with. A 30-foot putt is easier than a 5-yard flop over a bunker.</div></div>
+    <div class="drill"><div class="drill-t">${hand==='left'?'Lefty chipping note':'Chipping consistency'}</div><div class="drill-b">${hand==='left'?'As a lefty, check your lead (right) wrist at impact — it should be flat or slightly bowed, not cupped. A cupped lead wrist at impact is the #1 cause of fat and thin chips for lefties.':'Weight forward, shaft lean, quiet wrists. Those three things fix 90% of chunked and thinned chips.'}</div></div>
+  `;
+}
+
+// ── MY GAME ──────────────────────────────────────────────────────────
 function renderMyGame() {
   const rs=[...rounds].reverse(), scored=rs.filter(r=>!r.practice);
   const best=scored.length?Math.min(...scored.map(r=>r.total)):null;
