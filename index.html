@@ -35,6 +35,7 @@
     #loading .sub  { font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
     #loading .spinner { width: 36px; height: 36px; border: 3px solid rgba(201,168,76,0.2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes sv-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
     #loading .err { font-size: 0.85rem; color: #e87070; text-align: center; max-width: 280px; line-height: 1.5; display: none; }
 
     /* APP SHELL */
@@ -278,6 +279,15 @@ function showErr(m) {
 }
 
 function bootApp() {
+  // PIN gate — if profile has app_pin set and not yet authed this session
+  const isPreview = !userId || userId.startsWith('preview_');
+  if (!isPreview && profile?.app_pin && !sessionStorage.getItem('sv-authed-' + userId)) {
+    showPinGate(); return;
+  }
+  _launchApp();
+}
+
+function _launchApp() {
   rounds = loadRounds();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
   renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderMyGame();
@@ -285,6 +295,68 @@ function bootApp() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   refreshResumeBanner();
+}
+
+// ── PIN GATE ─────────────────────────────────────────────────────
+let _gatePin = '';
+
+function showPinGate() {
+  document.getElementById('loading').style.display = 'none';
+  const el = document.createElement('div');
+  el.id = 'pin-gate';
+  el.style.cssText = 'position:fixed;inset:0;background:var(--bg,#0d1a0f);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
+  el.innerHTML = `
+    <div style="font-family:'Bebas Neue',Georgia,serif;font-size:1.8rem;color:var(--gold,#c9a84c);letter-spacing:4px;margin-bottom:4px;">SPINVIBES</div>
+    <div style="font-size:1rem;font-weight:700;color:var(--cream,#f0ead8);margin-bottom:6px;">Enter your PIN</div>
+    <div style="font-size:0.82rem;color:var(--muted,#6a8a6e);margin-bottom:28px;">Welcome back, ${profile.name.split(' ')[0]}.</div>
+
+    <div id="gate-dots" style="display:flex;gap:14px;margin-bottom:32px;">
+      ${[0,1,2,3].map(i=>`<div id="gd-${i}" style="width:16px;height:16px;border-radius:50%;border:2px solid rgba(201,168,76,0.5);background:transparent;transition:background 0.15s;"></div>`).join('')}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:260px;width:100%;margin:0 auto;">
+      ${[1,2,3,4,5,6,7,8,9,'','0','⌫'].map(k=>`
+        <button onclick="gateKey('${k}')" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px 0;font-size:1.3rem;font-weight:600;color:var(--cream,#f0ead8);cursor:pointer;touch-action:manipulation;${k===''?'visibility:hidden;':''}" ${k===''?'disabled':''}>
+          ${k}
+        </button>`).join('')}
+    </div>
+    <div id="gate-err" style="height:20px;font-size:0.8rem;color:#d64f3a;margin-top:16px;"></div>
+  `;
+  document.body.appendChild(el);
+  _gatePin = '';
+}
+
+function gateKey(k) {
+  if (k === '⌫') {
+    _gatePin = _gatePin.slice(0, -1);
+  } else if (k !== '' && _gatePin.length < 4) {
+    _gatePin += k;
+  }
+  for (let i=0;i<4;i++) {
+    const d = document.getElementById('gd-'+i);
+    if (d) d.style.background = i < _gatePin.length ? 'var(--gold,#c9a84c)' : 'transparent';
+  }
+  document.getElementById('gate-err').textContent = '';
+  if (_gatePin.length === 4) {
+    setTimeout(() => {
+      if (_gatePin === profile.app_pin) {
+        sessionStorage.setItem('sv-authed-' + userId, '1');
+        document.getElementById('pin-gate').remove();
+        _launchApp();
+      } else {
+        document.getElementById('gate-err').textContent = 'Incorrect PIN — try again.';
+        // Shake dots
+        const dots = document.getElementById('gate-dots');
+        dots.style.animation = 'none';
+        dots.offsetHeight; // reflow
+        dots.style.animation = 'sv-shake 0.35s ease';
+        setTimeout(() => {
+          _gatePin = '';
+          for (let i=0;i<4;i++) { const d=document.getElementById('gd-'+i); if(d) d.style.background='transparent'; }
+        }, 350);
+      }
+    }, 120);
+  }
 }
 
 // ── NAV ──────────────────────────────────────────────────────────
