@@ -279,10 +279,11 @@ function showErr(m) {
 }
 
 function bootApp() {
-  // PIN gate — if profile has app_pin set and not yet authed this session
   const isPreview = !userId || userId.startsWith('preview_');
-  if (!isPreview && profile?.app_pin && !sessionStorage.getItem('sv-authed-' + userId)) {
-    showPinGate(); return;
+  // Effective PIN: Supabase-stored or locally-set
+  const effectivePin = (!isPreview && (profile?.app_pin || localStorage.getItem('sv-pin-' + userId))) || null;
+  if (effectivePin && !sessionStorage.getItem('sv-authed-' + userId)) {
+    showPinGate(effectivePin); return;
   }
   _launchApp();
 }
@@ -300,10 +301,11 @@ function _launchApp() {
 // ── PIN GATE ─────────────────────────────────────────────────────
 let _gatePin = '';
 
-function showPinGate() {
+function showPinGate(effectivePin) {
   document.getElementById('loading').style.display = 'none';
   const el = document.createElement('div');
   el.id = 'pin-gate';
+  el._pin = effectivePin;
   el.style.cssText = 'position:fixed;inset:0;background:var(--bg,#0d1a0f);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
   el.innerHTML = `
     <div style="font-family:'Bebas Neue',Georgia,serif;font-size:1.8rem;color:var(--gold,#c9a84c);letter-spacing:4px;margin-bottom:4px;">SPINVIBES</div>
@@ -339,7 +341,7 @@ function gateKey(k) {
   document.getElementById('gate-err').textContent = '';
   if (_gatePin.length === 4) {
     setTimeout(() => {
-      if (_gatePin === profile.app_pin) {
+      if (_gatePin === document.getElementById('pin-gate')._pin) {
         sessionStorage.setItem('sv-authed-' + userId, '1');
         document.getElementById('pin-gate').remove();
         _launchApp();
@@ -354,6 +356,69 @@ function gateKey(k) {
           _gatePin = '';
           for (let i=0;i<4;i++) { const d=document.getElementById('gd-'+i); if(d) d.style.background='transparent'; }
         }, 350);
+      }
+    }, 120);
+  }
+}
+
+// ── IN-APP PIN SETUP ─────────────────────────────────────────────
+let _setupPin = '', _setupPhase = 'set', _setupFirst = '';
+
+function openPinSetup() {
+  const el = document.createElement('div');
+  el.id = 'pin-setup-modal';
+  el.style.cssText = 'position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
+  el.innerHTML = `
+    <div style="font-size:1rem;font-weight:700;color:var(--cream);margin-bottom:4px;" id="ps-title">Set your app PIN</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:28px;" id="ps-sub">You'll enter this each time you open your app.</div>
+    <div id="ps-dots" style="display:flex;gap:14px;margin-bottom:32px;">
+      ${[0,1,2,3].map(i=>`<div id="psd-${i}" style="width:16px;height:16px;border-radius:50%;border:2px solid rgba(201,168,76,0.5);background:transparent;transition:background 0.15s;"></div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:260px;width:100%;margin:0 auto;">
+      ${[1,2,3,4,5,6,7,8,9,'','0','⌫'].map(k=>`
+        <button onclick="setupKey('${k}')" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px 0;font-size:1.3rem;font-weight:600;color:var(--cream);cursor:pointer;touch-action:manipulation;${k===''?'visibility:hidden;':''}" ${k===''?'disabled':''}>${k}</button>`).join('')}
+    </div>
+    <div id="ps-err" style="height:20px;font-size:0.8rem;color:#d64f3a;margin-top:16px;"></div>
+    <button onclick="document.getElementById('pin-setup-modal').remove()" style="margin-top:16px;font-size:0.78rem;color:var(--muted);background:none;border:none;cursor:pointer;">Cancel</button>
+  `;
+  document.body.appendChild(el);
+  _setupPin = ''; _setupPhase = 'set'; _setupFirst = '';
+}
+
+function setupKey(k) {
+  if (k === '⌫') { _setupPin = _setupPin.slice(0,-1); }
+  else if (k !== '' && _setupPin.length < 4) { _setupPin += k; }
+  for (let i=0;i<4;i++) { const d=document.getElementById('psd-'+i); if(d) d.style.background = i<_setupPin.length?'var(--gold,#c9a84c)':'transparent'; }
+  document.getElementById('ps-err').textContent = '';
+  if (_setupPin.length === 4) {
+    setTimeout(async () => {
+      if (_setupPhase === 'set') {
+        _setupFirst = _setupPin; _setupPin = ''; _setupPhase = 'confirm';
+        document.getElementById('ps-title').textContent = 'Confirm your PIN';
+        document.getElementById('ps-sub').textContent = 'Re-enter your PIN to confirm.';
+        for (let i=0;i<4;i++) { const d=document.getElementById('psd-'+i); if(d) d.style.background='transparent'; }
+      } else {
+        if (_setupPin === _setupFirst) {
+          // Save to localStorage immediately (works offline/without UPDATE RLS)
+          localStorage.setItem('sv-pin-' + userId, _setupPin);
+          // Best-effort PATCH to Supabase
+          try {
+            await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
+              method: 'PATCH',
+              headers: { ...SB_HDR, Prefer: 'return=minimal' },
+              body: JSON.stringify({ app_pin: _setupPin })
+            });
+          } catch(e) {}
+          document.getElementById('pin-setup-modal').remove();
+          showToast('PIN set — your app is now protected.');
+          renderHome(); // hide the nudge card
+        } else {
+          document.getElementById('ps-err').textContent = 'PINs don\'t match — try again.';
+          _setupPin = ''; _setupFirst = ''; _setupPhase = 'set';
+          document.getElementById('ps-title').textContent = 'Set your app PIN';
+          document.getElementById('ps-sub').textContent = 'You\'ll enter this each time you open your app.';
+          for (let i=0;i<4;i++) { const d=document.getElementById('psd-'+i); if(d) d.style.background='transparent'; }
+        }
       }
     }, 120);
   }
@@ -415,6 +480,16 @@ function renderHome() {
     </div>
 
     ${p.coaching_plan?`<div class="sec-title">Your Coaching Plan</div><div class="card"><div class="card-body">${p.coaching_plan.replace(/\n/g,'<br>')}</div></div>`:''}
+
+    ${(!userId?.startsWith('preview_') && !p.app_pin && !localStorage.getItem('sv-pin-'+userId)) ? `
+    <div class="card" onclick="openPinSetup()" style="cursor:pointer;border:1px solid rgba(201,168,76,0.25);display:flex;align-items:center;gap:14px;">
+      <i class="ti ti-lock" style="font-size:1.5rem;color:var(--gold);flex-shrink:0;"></i>
+      <div>
+        <div style="font-size:0.9rem;font-weight:700;color:var(--cream);">Protect your app</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:2px;">Set a PIN so only you can access your stats and caddie. Tap to set up.</div>
+      </div>
+      <i class="ti ti-chevron-right" style="color:var(--muted);margin-left:auto;flex-shrink:0;"></i>
+    </div>` : ''}
 
     <div class="sec-title">Your Bag</div>
     ${renderBag()}
