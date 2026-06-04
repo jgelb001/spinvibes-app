@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
       --bg:      #0d1a0f;
@@ -156,15 +157,36 @@
 
     .toast { position: fixed; bottom: calc(72px + env(safe-area-inset-bottom,0px) + 12px); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surf2); border: 1px solid var(--border); border-radius: 20px; padding: 8px 18px; font-size: 0.82rem; color: var(--cream); opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 9000; white-space: nowrap; pointer-events: none; }
     .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* AUTH MODAL */
+    #auth-modal { position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:9998;padding:24px; }
+    #auth-modal.on { display:flex; }
+    #auth-modal-inner { background:var(--surf);border:1px solid var(--border);border-radius:20px;padding:28px 24px;width:100%;max-width:360px;text-align:center; }
+    #auth-modal input[type=email] { width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--cream);font-size:1rem;font-family:inherit;margin:16px 0 12px;box-sizing:border-box; }
+    #auth-modal input[type=email]::placeholder { color:var(--muted); }
+    #auth-modal input[type=email]:focus { outline:none;border-color:rgba(201,168,76,0.5); }
   </style>
 </head>
 <body>
 
 <div id="loading">
   <div class="logo">SPINVIBES</div>
-  <div class="sub">Loading your app…</div>
+  <div class="sub" id="loading-sub">Loading your app…</div>
   <div class="spinner"></div>
   <div class="err" id="load-err"></div>
+</div>
+
+<!-- AUTH MODAL -->
+<div id="auth-modal">
+  <div id="auth-modal-inner">
+    <div style="font-size:1.5rem;margin-bottom:6px;">⛳</div>
+    <div style="font-weight:700;font-size:1.05rem;color:var(--cream);" id="auth-modal-title">Save your progress</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-top:6px;line-height:1.5;" id="auth-modal-sub">Enter your email and we'll send a magic link — no password needed. Your rounds and stats will sync across devices.</div>
+    <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email">
+    <button class="btn-primary" style="width:100%;" id="auth-send-btn" onclick="submitMagicLink()">Send Magic Link</button>
+    <div id="auth-msg" style="font-size:0.8rem;margin-top:12px;color:var(--muted);line-height:1.4;"></div>
+    <button onclick="closeAuthModal()" style="margin-top:14px;font-size:0.78rem;color:var(--muted);background:none;border:none;cursor:pointer;">Cancel</button>
+  </div>
 </div>
 
 <div id="app">
@@ -173,7 +195,10 @@
       <div class="tb-brand">SPINVIBES</div>
       <div class="tb-user" id="tb-user"></div>
     </div>
-    <button class="tb-btn" onclick="toggleDark()"><i class="ti ti-sun"></i></button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="tb-btn" id="tb-auth-btn" onclick="showAuthModal()" title="Sign in"><i class="ti ti-user-plus"></i></button>
+      <button class="tb-btn" onclick="toggleDark()"><i class="ti ti-sun"></i></button>
+    </div>
   </div>
 
   <div class="pages">
@@ -226,8 +251,12 @@ const CADDIE_URL    = 'https://spinvibes-caddie.spinvibes.workers.dev';
 const WORKER_SECRET = 'sv-golf-2026-xK9mPqR4nBzT';
 const SB_HDR = { 'Content-Type':'application/json', apikey: SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}` };
 
+// Supabase JS client — handles auth sessions automatically
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
 // ── STATE ────────────────────────────────────────────────────────
 let profile = null, userId = null, rounds = [], caddieHistory = [];
+let _authUser = null; // set when magic link auth succeeds
 let _holes = [], _holeIdx = 0, _round = {}, _manYards = null, _caddieOpen = false, _caddieHist = [];
 const DRAFT_KEY = () => 'sv-app-draft-' + (userId||'g');
 
@@ -256,20 +285,65 @@ function suggestClub(yds) {
 // ── BOOT ─────────────────────────────────────────────────────────
 (async () => {
   const P = new URLSearchParams(location.search);
-  userId = P.get('u');
-  if (!userId || userId === 'preview') {
+  const uuidParam = P.get('u');
+
+  // Preview / URL-param mode
+  if (!uuidParam || uuidParam === 'preview') {
     profile = { name: decodeURIComponent(P.get('n')||'Golfer'), hand: P.get('h')||'r', skill: P.get('s')||'mid', goal: P.get('g')||'fun', age: P.get('a')||'adult', weaknesses:[], freq:'weekly', equip:'full', bag:'', coaching_plan:null, distances:{} };
     userId = 'preview_' + Date.now();
     bootApp(); return;
   }
+
+  // Check for active Supabase auth session (magic link lands here)
+  const { data: { session } } = await _sb.auth.getSession();
+
+  if (session) {
+    // Authed user — load profile by auth_id
+    _authUser = session.user;
+    document.getElementById('loading-sub').textContent = 'Loading your profile…';
+    try {
+      const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?auth_id=eq.${session.user.id}&select=*&limit=1`, { headers: SB_HDR });
+      const rows = await res.json();
+      if (rows?.[0]) {
+        profile = rows[0]; userId = profile.id;
+        localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile));
+        bootApp(); return;
+      }
+    } catch(e) {}
+    // Auth session exists but no profile linked yet — fall through to UUID load + link
+  }
+
+  // UUID link — guest mode (or post-magic-link with UUID still in URL)
+  userId = uuidParam;
   const cached = localStorage.getItem('sv-profile-' + userId);
   if (cached) { try { profile = JSON.parse(cached); bootApp(); } catch(e) {} }
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}&select=*&limit=1`, { headers: SB_HDR });
+    const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}&select=*&limit=1`, { headers: SB_HDR });
     const rows = await res.json();
-    if (rows?.[0]) { profile = rows[0]; localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile)); if (!cached) bootApp(); else { renderHome(); } }
-    else if (!cached) showErr("Couldn't find your profile.");
+    if (rows?.[0]) {
+      profile = rows[0];
+      localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile));
+      // If authed and profile not yet linked, link now
+      if (session && !profile.auth_id) linkAuthToProfile(session.user.id);
+      if (!cached) bootApp(); else renderHome();
+    } else if (!cached) { showErr("Couldn't find your profile."); }
   } catch(e) { if (!cached) showErr("No signal — check connection."); }
+
+  // Auth state listener — fires when magic link is clicked in email
+  _sb.auth.onAuthStateChange(async (event, sess) => {
+    if (event === 'SIGNED_IN' && sess) {
+      _authUser = sess.user;
+      if (userId && !userId.startsWith('preview_') && !profile?.auth_id) {
+        await linkAuthToProfile(sess.user.id);
+      }
+      await migrateLocalRoundsToSupabase();
+      updateAuthUI();
+      renderHome(); // re-render to show auth status + hide nudge
+    } else if (event === 'SIGNED_OUT') {
+      _authUser = null;
+      updateAuthUI();
+    }
+  });
 })();
 
 function showErr(m) {
@@ -288,14 +362,15 @@ function bootApp() {
   _launchApp();
 }
 
-function _launchApp() {
-  rounds = loadRounds();
+async function _launchApp() {
+  rounds = await loadRounds();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
   renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderMyGame();
   document.getElementById('tb-user').textContent = profile.name.toUpperCase();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   refreshResumeBanner();
+  updateAuthUI();
 }
 
 // ── PIN GATE ─────────────────────────────────────────────────────
@@ -480,6 +555,16 @@ function renderHome() {
     </div>
 
     ${p.coaching_plan?`<div class="sec-title">Your Coaching Plan</div><div class="card"><div class="card-body">${p.coaching_plan.replace(/\n/g,'<br>')}</div></div>`:''}
+
+    ${(!userId?.startsWith('preview_') && !_authUser && rounds.length >= 1) ? `
+    <div class="card" onclick="showAuthModal()" style="cursor:pointer;border:1px solid rgba(201,168,76,0.25);display:flex;align-items:center;gap:14px;">
+      <i class="ti ti-device-floppy" style="font-size:1.5rem;color:var(--gold);flex-shrink:0;"></i>
+      <div>
+        <div style="font-size:0.9rem;font-weight:700;color:var(--cream);">Save your progress</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:2px;">Sign in with a magic link — your rounds sync across all your devices.</div>
+      </div>
+      <i class="ti ti-chevron-right" style="color:var(--muted);margin-left:auto;flex-shrink:0;"></i>
+    </div>` : ''}
 
     ${(!userId?.startsWith('preview_') && !p.app_pin && !localStorage.getItem('sv-pin-'+userId)) ? `
     <div class="card" onclick="openPinSetup()" style="cursor:pointer;border:1px solid rgba(201,168,76,0.25);display:flex;align-items:center;gap:14px;">
@@ -1039,7 +1124,8 @@ function saveCompletedRound() {
     holeData:_holes.map(h=>({hole:h.hole,par:h.par,score:h.score,yds:h.yds,approachYds:h.approachYds,photo:h.photos?.[0]||null})),
     notes:document.getElementById('rs-notes')?.value.trim()||'',
   };
-  rounds.push(r); persistRounds();
+  await persistRound(r);
+  if (!_authUser) rounds = [...rounds.filter(x=>x.id!==r.id), r]; // keep local cache in sync
   showToast('Round saved ✓');
   document.getElementById('round-modal').classList.remove('on');
   unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
@@ -1133,8 +1219,96 @@ function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds
 
 // ── DRAFT / STORAGE ──────────────────────────────────────────────
 const RK = ()=>'sv-app-rounds-'+(userId||'g');
-function loadRounds()   { try{return JSON.parse(localStorage.getItem(RK())||'[]');}catch(e){return [];} }
-function persistRounds(){ try{localStorage.setItem(RK(),JSON.stringify(rounds));}catch(e){} }
+
+async function loadRounds() {
+  if (_authUser) {
+    try {
+      const { data } = await _sb.from('user_rounds').select('*').order('date_played', { ascending: false }).limit(50);
+      return data || [];
+    } catch(e) {}
+  }
+  try { return JSON.parse(localStorage.getItem(RK()) || '[]'); } catch(e) { return []; }
+}
+
+async function persistRound(r) {
+  if (_authUser) {
+    try {
+      await _sb.from('user_rounds').upsert({
+        ...r, id: r.id || undefined,
+        user_id: _authUser.id, guide_user_id: userId || null,
+        date_played: r.date || new Date().toISOString().split('T')[0],
+      });
+      return;
+    } catch(e) { console.warn('Supabase round save failed, falling back to localStorage', e); }
+  }
+  if (!rounds.find(x => x.id === r.id)) rounds.push(r);
+  try { localStorage.setItem(RK(), JSON.stringify(rounds)); } catch(e) {}
+}
+
+function persistRounds() { try { localStorage.setItem(RK(), JSON.stringify(rounds)); } catch(e) {} }
+
+// ── AUTH FUNCTIONS ───────────────────────────────────────────────
+async function linkAuthToProfile(authId) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: { ...SB_HDR, Authorization: `Bearer ${(await _sb.auth.getSession()).data.session?.access_token || SUPABASE_ANON}`, Prefer: 'return=minimal' },
+      body: JSON.stringify({ auth_id: authId })
+    });
+    if (profile) { profile.auth_id = authId; localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile)); }
+  } catch(e) { console.warn('linkAuthToProfile failed', e); }
+}
+
+async function migrateLocalRoundsToSupabase() {
+  const local = (() => { try { return JSON.parse(localStorage.getItem(RK()) || '[]'); } catch(e) { return []; } })();
+  if (!local.length || !_authUser) return;
+  for (const r of local) { await persistRound(r); }
+  localStorage.removeItem(RK()); // clear local now that they're in Supabase
+  rounds = await loadRounds();
+  renderMyGame(); renderHome();
+}
+
+function updateAuthUI() {
+  const btn = document.getElementById('tb-auth-btn');
+  if (!btn) return;
+  if (_authUser) {
+    btn.innerHTML = '<i class="ti ti-user-check"></i>';
+    btn.title = _authUser.email;
+    btn.onclick = () => { if (confirm('Sign out?')) _sb.auth.signOut(); };
+  } else {
+    btn.innerHTML = '<i class="ti ti-user-plus"></i>';
+    btn.onclick = () => showAuthModal();
+  }
+}
+
+function showAuthModal(title, sub) {
+  document.getElementById('auth-modal-title').textContent = title || 'Save your progress';
+  document.getElementById('auth-modal-sub').textContent   = sub   || 'Enter your email and we\'ll send a magic link — no password needed. Your rounds sync across devices.';
+  document.getElementById('auth-msg').textContent = '';
+  document.getElementById('auth-email').value = '';
+  document.getElementById('auth-modal').classList.add('on');
+  setTimeout(() => document.getElementById('auth-email').focus(), 100);
+}
+function closeAuthModal() { document.getElementById('auth-modal').classList.remove('on'); }
+
+async function submitMagicLink() {
+  const email = document.getElementById('auth-email').value.trim();
+  if (!email || !email.includes('@')) { document.getElementById('auth-msg').textContent = 'Enter a valid email address.'; return; }
+  const btn = document.getElementById('auth-send-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const { error } = await _sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: 'https://app.spinvibes.com' + (userId && !userId.startsWith('preview_') ? '?u=' + userId : '') }
+    });
+    if (error) throw error;
+    document.getElementById('auth-msg').innerHTML = `<strong style="color:var(--gold);">Check your email!</strong><br>We sent a magic link to <strong>${email}</strong>. Tap it to sign in — the link works for 60 minutes.`;
+    btn.textContent = 'Sent ✓';
+  } catch(e) {
+    document.getElementById('auth-msg').textContent = 'Something went wrong — ' + (e.message || 'try again.');
+    btn.disabled = false; btn.textContent = 'Send Magic Link';
+  }
+}
 function saveDraft()    { try{localStorage.setItem(DRAFT_KEY(),JSON.stringify({round:_round,holes:_holes,holeIdx:_holeIdx,ts:Date.now()}));}catch(e){} }
 function clearDraft()   { try{localStorage.removeItem(DRAFT_KEY());}catch(e){} }
 function loadDraft()    { try{return JSON.parse(localStorage.getItem(DRAFT_KEY()));}catch(e){return null;} }
