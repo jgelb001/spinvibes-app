@@ -1124,17 +1124,51 @@ function renderRoundSummary() {
   `;
 }
 
-function saveCompletedRound() {
-  const total=_holes.reduce((a,h)=>a+h.score,0);
-  const par=_holes.reduce((a,h)=>a+h.par,0);
-  const r={
-    id:Date.now().toString(), date:_round.date||new Date().toISOString().split('T')[0],
-    course:_round.course||'', total, par, holes:_holes.length, tee:_round.tee||null,
-    holeData:_holes.map(h=>({hole:h.hole,par:h.par,score:h.score,yds:h.yds,approachYds:h.approachYds,photo:h.photos?.[0]||null})),
-    notes:document.getElementById('rs-notes')?.value.trim()||'',
+async function _uploadAppHolePhotos(roundId) {
+  for (const h of _holes) {
+    if (!h.photos?.length) continue;
+    const uploaded = [];
+    for (let i = 0; i < h.photos.length; i++) {
+      const p = h.photos[i];
+      if (!p || p.startsWith('http')) { uploaded.push(p); continue; }
+      try {
+        const res  = await fetch(p);
+        const blob = await res.blob();
+        const path = `app/${roundId}/hole-${h.hole}-${i}.jpg`;
+        const { error } = await _sb.storage.from('round-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+        if (!error) {
+          const { data } = _sb.storage.from('round-photos').getPublicUrl(path);
+          uploaded.push(data.publicUrl);
+        } else { uploaded.push(p); }
+      } catch(e) { uploaded.push(p); }
+    }
+    h.photos = uploaded;
+  }
+}
+
+async function saveCompletedRound() {
+  const roundId = Date.now().toString();
+  const saveBtn = document.querySelector('#round-modal .btn-gold');
+
+  // Upload hole photos before saving
+  const hasPhotos = _holes.some(h => h.photos?.some(p => p && !p.startsWith('http')));
+  if (hasPhotos) {
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Uploading photos…'; }
+    await _uploadAppHolePhotos(roundId);
+  }
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+  const total = _holes.reduce((a,h)=>a+h.score,0);
+  const par   = _holes.reduce((a,h)=>a+h.par,0);
+  const r = {
+    id: roundId,
+    date: _round.date || new Date().toISOString().split('T')[0],
+    course: _round.course||'', total, par, holes: _holes.length, tee: _round.tee||null,
+    holeData: _holes.map(h=>({hole:h.hole, par:h.par, score:h.score, yds:h.yds, approachYds:h.approachYds, photo:h.photos?.[0]||null})),
+    notes: document.getElementById('rs-notes')?.value.trim()||'',
   };
   await persistRound(r);
-  if (!_authUser) rounds = [...rounds.filter(x=>x.id!==r.id), r]; // keep local cache in sync
+  if (!_authUser) rounds = [...rounds.filter(x=>x.id!==r.id), r];
   showToast('Round saved ✓');
   document.getElementById('round-modal').classList.remove('on');
   unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
