@@ -287,15 +287,24 @@ function suggestClub(yds) {
   const P = new URLSearchParams(location.search);
   const uuidParam = P.get('u');
 
-  // Preview / URL-param mode
-  if (!uuidParam || uuidParam === 'preview') {
-    profile = { name: decodeURIComponent(P.get('n')||'Golfer'), hand: P.get('h')||'r', skill: P.get('s')||'mid', goal: P.get('g')||'fun', age: P.get('a')||'adult', weaknesses:[], freq:'weekly', equip:'full', bag:'', coaching_plan:null, distances:{} };
-    userId = 'preview_' + Date.now();
-    bootApp(); return;
-  }
-
-  // Check for active Supabase auth session (magic link lands here)
+  // Check for active Supabase auth session first (handles magic link return + return visits)
   const { data: { session } } = await _sb.auth.getSession();
+
+  // No UUID — either return visitor or direct visit
+  if (!uuidParam || uuidParam === 'preview') {
+    if (uuidParam === 'preview' || P.get('n')) {
+      // Explicit preview or URL-param fallback profile
+      profile = { name: decodeURIComponent(P.get('n')||'Golfer'), hand: P.get('h')||'r', skill: P.get('s')||'mid', goal: P.get('g')||'fun', age: P.get('a')||'adult', weaknesses:[], freq:'weekly', equip:'full', bag:'', coaching_plan:null, distances:{} };
+      userId = 'preview_' + Date.now();
+      bootApp(); return;
+    }
+    if (session) {
+      // Return visitor with active session — handled below
+    } else {
+      // Direct visit, no UUID, no session — show login screen
+      showLoginScreen(); return;
+    }
+  }
 
   if (session) {
     // Authed user — load profile by auth_id
@@ -1278,6 +1287,63 @@ function updateAuthUI() {
   } else {
     btn.innerHTML = '<i class="ti ti-user-plus"></i>';
     btn.onclick = () => showAuthModal();
+  }
+}
+
+function showLoginScreen() {
+  document.getElementById('loading').style.display = 'none';
+  const el = document.createElement('div');
+  el.id = 'login-screen';
+  el.style.cssText = 'position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
+  el.innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--gold);letter-spacing:5px;margin-bottom:4px;">SPINVIBES</div>
+    <div style="font-size:1rem;font-weight:700;color:var(--cream);margin-bottom:6px;">Welcome back</div>
+    <div style="font-size:0.85rem;color:var(--muted);margin-bottom:28px;max-width:280px;line-height:1.5;">Enter your email to get a magic link and jump back into your app.</div>
+    <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email"
+      style="width:100%;max-width:320px;background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--cream);font-size:1rem;font-family:inherit;box-sizing:border-box;margin-bottom:12px;">
+    <button id="login-send-btn" onclick="submitLoginMagicLink()"
+      style="width:100%;max-width:320px;background:linear-gradient(135deg,var(--green),#1e4d2b);color:var(--gold);padding:16px;border:none;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;touch-action:manipulation;">
+      Send Magic Link
+    </button>
+    <div id="login-msg" style="font-size:0.8rem;color:var(--muted);margin-top:14px;line-height:1.5;max-width:280px;"></div>
+    <div style="margin-top:28px;font-size:0.75rem;color:var(--muted);">New to SpinVibes? <a href="https://golf.spinvibes.com" style="color:var(--gold);text-decoration:none;">Build your guide →</a></div>
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => document.getElementById('login-email')?.focus(), 100);
+
+  // Auth state listener for this screen — fires when magic link is clicked
+  _sb.auth.onAuthStateChange(async (event, sess) => {
+    if (event === 'SIGNED_IN' && sess) {
+      _authUser = sess.user;
+      document.getElementById('login-msg').innerHTML = '<strong style="color:var(--gold);">Signed in!</strong> Loading your profile…';
+      const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?auth_id=eq.${sess.user.id}&select=*&limit=1`, { headers: SB_HDR });
+      const rows = await res.json();
+      if (rows?.[0]) {
+        profile = rows[0]; userId = profile.id;
+        localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile));
+        document.getElementById('login-screen')?.remove();
+        rounds = await loadRounds();
+        bootApp();
+      } else {
+        document.getElementById('login-msg').textContent = "Signed in but no profile found. Try your original app link.";
+      }
+    }
+  });
+}
+
+async function submitLoginMagicLink() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email || !email.includes('@')) { document.getElementById('login-msg').textContent = 'Enter a valid email address.'; return; }
+  const btn = document.getElementById('login-send-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const { error } = await _sb.auth.signInWithOtp({ email, options: { emailRedirectTo: 'https://app.spinvibes.com' } });
+    if (error) throw error;
+    document.getElementById('login-msg').innerHTML = `<strong style="color:var(--gold);">Check your email!</strong><br>We sent a link to <strong>${email}</strong>. Tap it to sign in.`;
+    btn.textContent = 'Sent ✓';
+  } catch(e) {
+    document.getElementById('login-msg').textContent = 'Something went wrong — ' + (e.message || 'try again.');
+    btn.disabled = false; btn.textContent = 'Send Magic Link';
   }
 }
 
