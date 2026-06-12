@@ -5,50 +5,53 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0d1a0f">
+  <meta name="theme-color" content="#13291C">
   <title>SpinVibes Golf</title>
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
-      --bg:      #0d1a0f;
-      --surf:    #14231a;
-      --surf2:   #1a2d20;
-      --surf3:   #1f3526;
-      --border:  rgba(255,255,255,0.08);
-      --cream:   #f0ead8;
-      --muted:   #8a9e8e;
-      --gold:    #c9a84c;
-      --gold-l:  #d4b86a;
-      --green:   #2d6a3f;
-      --green-b: #1e4d2b;
+      /* ── Fable design system: forest ink chrome · white field · kelly green action ── */
+      --bg:      #ffffff;
+      --surf:    #F3F7F3;
+      --surf2:   #EBF1EB;
+      --surf3:   #E0E9E0;
+      --border:  #E4EAE4;
+      --ink:     #13291C;
+      --cream:   #13291C;
+      --muted:   #6B7A6E;
+      --gold:    #D4A843;
+      --gold-l:  #b8922e;
+      --green:   #249657;
+      --green-b: #1E7F4A;
       --red:     #c0392b;
     }
-    /* LIGHT MODE — toggled via .sv-light on body */
-    body.sv-light {
-      --bg:      #f5f3ec;
-      --surf:    #ffffff;
-      --surf2:   #edeae0;
-      --surf3:   #e2ded2;
-      --border:  rgba(0,0,0,0.08);
-      --cream:   #1c2018;
-      --muted:   #6a7a68;
-      --gold:    #8a6010;
-      --gold-l:  #6b4a0c;
-      --green:   #2d6a3f;
-      --green-b: #3d8a52;
-      --red:     #c0392b;
+    /* DARK MODE — toggled via .sv-dark on body (Fable ink-green family) */
+    body.sv-dark {
+      --bg:      #0f1f15;
+      --surf:    #16291d;
+      --surf2:   #1d3325;
+      --surf3:   #243d2c;
+      --border:  rgba(255,255,255,0.09);
+      --ink:     #0c1a11;
+      --cream:   #EDF3ED;
+      --muted:   #8DA391;
+      --gold:    #D4A843;
+      --gold-l:  #e0bc62;
+      --green:   #2BAA65;
+      --green-b: #249657;
+      --red:     #d65b4a;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: var(--bg); color: var(--cream); font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; }
+    html, body { height: 100%; background: var(--bg); color: var(--cream); font-family: 'Archivo', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; }
 
     /* LOADING */
-    #loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 9999; }
-    #loading .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; color: var(--gold); letter-spacing: 5px; }
-    #loading .sub  { font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+    #loading { position: fixed; inset: 0; background: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 9999; }
+    #loading .logo { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 2.2rem; color: #FFFFFF; }
+    #loading .sub  { font-size: 0.75rem; color: rgba(255,255,255,0.55); letter-spacing: 2px; text-transform: uppercase; }
     #loading .spinner { width: 36px; height: 36px; border: 3px solid rgba(201,168,76,0.2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes sv-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
@@ -57,31 +60,36 @@
     /* APP SHELL */
     #app { display: none; flex-direction: column; height: 100dvh; max-width: 500px; margin: 0 auto; }
 
-    /* TOPBAR */
-    .topbar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top,0px)); border-bottom: 1px solid var(--border); background: var(--bg); }
-    .tb-brand { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; color: var(--gold); letter-spacing: 3px; line-height: 1; }
-    .tb-user  { font-size: 0.65rem; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
-    .tb-btn   { background: var(--surf2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 9px; font-size: 0.9rem; cursor: pointer; color: var(--cream); touch-action: manipulation; }
+    /* TOPBAR — Fable ink chrome */
+    .topbar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; padding-top: calc(12px + env(safe-area-inset-top,0px)); border-bottom: none; background: var(--ink); }
+    .tb-brand { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 1.15rem; letter-spacing: -0.2px; color: #FFFFFF; line-height: 1; }
+    .tb-user  { font-size: 0.65rem; color: rgba(255,255,255,0.55); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px; }
+    .tb-btn   { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); border-radius: 20px; padding: 5px 9px; font-size: 0.9rem; cursor: pointer; color: #fff; touch-action: manipulation; }
 
     /* PAGES */
     .pages { flex: 1; overflow: hidden; position: relative; }
     .page { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 16px 16px calc(76px + env(safe-area-inset-bottom,0px)); display: none; }
     .page.on { display: block; }
 
-    /* NAV */
-    .nav { flex-shrink: 0; display: flex; background: var(--bg); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom,0px); }
-    .nb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 2px 7px; background: none; border: none; color: var(--muted); font-family: 'Outfit', sans-serif; font-size: 0.55rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; touch-action: manipulation; }
-    .nb i { font-size: 1.3rem; }
-    .nb.on { color: var(--gold); }
+    /* NAV — Fable: white bar, sentence case, ink active, center kelly Play */
+    .nav { flex-shrink: 0; display: flex; align-items: center; height: calc(54px + env(safe-area-inset-bottom,0px)); background: var(--bg); border-top: 0.5px solid var(--border); padding-bottom: env(safe-area-inset-bottom,0px); }
+    .nb { flex: 1 1 0; min-width: 0; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 0 2px; background: none; border: none; color: #9AA89D; font-family: 'Archivo', sans-serif; font-size: 0.58rem; font-weight: 600; letter-spacing: 0.1px; text-transform: none; cursor: pointer; touch-action: manipulation; transition: color 0.15s; }
+    .nb i { font-size: 21px; line-height: 1; }
+    .nb.on { color: var(--ink); font-weight: 700; }
+    body.sv-dark .nav { background: var(--surf); }
+    body.sv-dark .nb.on { color: var(--cream); }
+    .nav-play { flex: 0 0 auto; width: 46px; height: 46px; margin: 0 6px; border-radius: 50%; border: none; background: var(--green); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-family: 'Archivo', sans-serif; font-size: 0.44rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; box-shadow: 0 2px 8px rgba(19,41,28,0.28); touch-action: manipulation; }
+    .nav-play i { font-size: 18px; line-height: 1; }
+    .nav-play:active { transform: scale(0.94); opacity: 0.9; }
 
     /* COMPONENTS */
-    .hero { background: linear-gradient(135deg,var(--surf),var(--surf2)); border-radius: 16px; padding: 20px; margin-bottom: 14px; border: 1px solid rgba(201,168,76,0.15); }
-    .hero-hi   { font-size: 0.62rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
-    .hero-name { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; line-height: 1; color: var(--cream); margin-bottom: 4px; }
-    .hero-goal { font-size: 0.88rem; color: var(--gold); font-weight: 600; margin-bottom: 10px; }
+    .hero { background: var(--ink); border-radius: 16px; padding: 20px; margin-bottom: 14px; border: none; }
+    .hero-hi   { font-size: 0.62rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 2px; }
+    .hero-name { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 2.4rem; line-height: 1; color: #FFFFFF; margin-bottom: 4px; }
+    .hero-goal { font-size: 0.88rem; color: #7BD4A0; font-weight: 600; margin-bottom: 10px; }
     .hero-pills { display: flex; gap: 6px; flex-wrap: wrap; }
-    .pill { background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25); border-radius: 20px; padding: 3px 10px; font-size: 0.68rem; font-weight: 600; color: var(--gold); }
-    .pill.g { background: rgba(45,106,63,0.15); border-color: rgba(45,106,63,0.3); color: #6ec98a; }
+    .pill { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); border-radius: 20px; padding: 3px 10px; font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,0.85); }
+    .pill.g { background: rgba(36,150,87,0.25); border-color: rgba(36,150,87,0.45); color: #7BD4A0; }
 
     .sec-title { font-size: 0.65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
     .card { background: var(--surf); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
@@ -90,13 +98,13 @@
 
     .stats-row { display: flex; gap: 8px; margin-bottom: 14px; }
     .stat { flex: 1; background: var(--surf); border-radius: 10px; padding: 11px 8px; text-align: center; border: 1px solid var(--border); }
-    .stat-n { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; color: var(--gold); line-height: 1; }
+    .stat-n { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 1.6rem; color: var(--cream); line-height: 1; }
     .stat-l { font-size: 0.56rem; color: var(--muted); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px; }
 
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .qc { background: var(--surf); border-radius: 14px; padding: 16px 14px; border: 1px solid var(--border); cursor: pointer; touch-action: manipulation; transition: background 0.1s; }
     .qc:active { background: var(--surf2); }
-    .qc-icon { font-size: 1.4rem; color: var(--gold); margin-bottom: 6px; }
+    .qc-icon { font-size: 1.4rem; color: var(--green); margin-bottom: 6px; }
     .qc-title { font-weight: 700; font-size: 0.85rem; color: var(--cream); }
     .qc-sub   { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
 
@@ -108,23 +116,23 @@
     .msg.c { background: var(--surf2); color: var(--cream); align-self: flex-start; border-radius: 12px 12px 12px 2px; border: 1px solid var(--border); }
     .msg.s { background: rgba(201,168,76,0.08); color: var(--muted); align-self: center; font-size: 0.74rem; border: 1px solid rgba(201,168,76,0.15); border-radius: 8px; text-align: center; max-width: 100%; }
     .caddie-row { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
-    .caddie-row textarea { flex: 1; background: var(--surf2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--cream); font-family: 'Outfit',sans-serif; font-size: 0.87rem; resize: none; outline: none; }
+    .caddie-row textarea { flex: 1; background: var(--surf2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--cream); font-family: 'Archivo',sans-serif; font-size: 0.87rem; resize: none; outline: none; }
     .caddie-row button { background: var(--green); border: none; border-radius: 10px; padding: 10px 16px; color: #e8f5ec; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 
     /* BUTTONS */
-    .btn-gold  { background: var(--gold); border: none; border-radius: 12px; padding: 14px 20px; color: #1a1300; font-family: 'Outfit',sans-serif; font-size: 0.92rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
-    .btn-ghost { background: none; border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; color: var(--cream); font-family: 'Outfit',sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; touch-action: manipulation; }
-    .mi { width: 100%; background: var(--surf2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--cream); font-family: 'Outfit',sans-serif; font-size: 0.92rem; outline: none; margin-bottom: 12px; }
+    .btn-gold  { background: var(--green); border: none; border-radius: 12px; padding: 14px 20px; color: #ffffff; font-family: 'Archivo',sans-serif; font-size: 0.92rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+    .btn-ghost { background: none; border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; color: var(--cream); font-family: 'Archivo',sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+    .mi { width: 100%; background: var(--surf2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--cream); font-family: 'Archivo',sans-serif; font-size: 0.92rem; outline: none; margin-bottom: 12px; }
     .ml { font-size: 0.68rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: block; }
 
     /* ROUND MODAL (full-screen) */
     #round-modal { display: none; position: fixed; inset: 0; z-index: 500; background: var(--bg); flex-direction: column; padding-top: env(safe-area-inset-top,0px); }
     #round-modal.on { display: flex; }
     #rm-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); touch-action: none; }
-    #rm-label  { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; line-height: 1; color: var(--gold); }
+    #rm-label  { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 2rem; line-height: 1; color: var(--cream); }
     #rm-sub    { font-size: 0.65rem; font-weight: 700; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; display: none; }
     #rm-rt     { text-align: right; line-height: 1; display: none; }
-    #rm-rt-score { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; color: var(--cream); }
+    #rm-rt-score { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 1.6rem; color: var(--cream); }
     #rm-rt-diff  { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.5px; color: var(--muted); }
     #rm-close-btn { background: none; border: none; color: var(--muted); font-size: 1.4rem; cursor: pointer; touch-action: manipulation; }
     #rm-body   { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 20px; padding-bottom: 12px; }
@@ -132,11 +140,11 @@
 
     /* APPROACH SLIDER */
     .live-dist-card { background: var(--surf2); border: 1px solid rgba(201,168,76,0.2); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
-    .live-yards { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; color: var(--gold); line-height: 1; }
+    .live-yards { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 3rem; color: var(--cream); line-height: 1; }
     .club-suggest { background: var(--surf); border: 1px solid rgba(201,168,76,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; display: none; }
 
     /* SCORE STEPPER */
-    .score-cell { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; line-height: 1; color: var(--cream); min-width: 48px; text-align: center; }
+    .score-cell { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 2rem; line-height: 1; color: var(--cream); min-width: 48px; text-align: center; }
     .step-btn { width: 44px; height: 50px; border-radius: 10px; background: var(--surf); border: 1px solid var(--border); font-size: 1.6rem; font-weight: 300; color: var(--cream); cursor: pointer; touch-action: manipulation; display: flex; align-items: center; justify-content: center; }
 
     /* DRILL */
@@ -146,7 +154,7 @@
 
     /* ROUND HISTORY */
     .rc { background: var(--surf); border-radius: 12px; padding: 13px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
-    .rc-score { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--cream); line-height: 1; }
+    .rc-score { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 2rem; color: var(--cream); line-height: 1; }
 
     /* HOLE GRID */
     .hole-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
@@ -229,9 +237,9 @@
   <nav class="nav">
     <button class="nb on" onclick="goPage('home')"      id="nb-home">      <i class="ti ti-home"></i>Home</button>
     <button class="nb"    onclick="goPage('caddie')"    id="nb-caddie">    <i class="ti ti-message-circle"></i>Caddie</button>
+    <button class="nav-play" onclick="openRound()" id="nav-play" title="Start a round"><i class="ti ti-golf"></i>Play</button>
     <button class="nb"    onclick="goPage('range')"     id="nb-range">     <i class="ti ti-run"></i>Range</button>
-    <button class="nb"    onclick="goPage('shortgame')" id="nb-shortgame"> <i class="ti ti-target"></i>Short Game</button>
-    <button class="nb"    onclick="goPage('mygame')"    id="nb-mygame">    <i class="ti ti-chart-line"></i>My Game</button>
+    <button class="nb"    onclick="goPage('mygame')"    id="nb-mygame">    <i class="ti ti-chart-line"></i>My game</button>
   </nav>
 </div>
 
@@ -407,7 +415,7 @@ function showPinGate(effectivePin) {
   el._pin = effectivePin;
   el.style.cssText = 'position:fixed;inset:0;background:var(--bg,#0d1a0f);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
   el.innerHTML = `
-    <div style="font-family:'Bebas Neue',Georgia,serif;font-size:1.8rem;color:var(--gold,#c9a84c);letter-spacing:4px;margin-bottom:4px;">SPINVIBES</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--gold,#c9a84c);letter-spacing:4px;margin-bottom:4px;">SPINVIBES</div>
     <div style="font-size:1rem;font-weight:700;color:var(--cream,#f0ead8);margin-bottom:6px;">Enter your PIN</div>
     <div style="font-size:0.82rem;color:var(--muted,#6a8a6e);margin-bottom:28px;">Welcome back, ${profile.name.split(' ')[0]}.</div>
 
@@ -528,14 +536,17 @@ function goPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
-  document.getElementById('nb-'+id).classList.add('on');
+  // Pages without their own nav tab (e.g. shortgame, stretch) highlight their parent tab
+  const navMap = { shortgame:'range', stretch:'range', strategy:'mygame' };
+  const nb = document.getElementById('nb-'+(navMap[id]||id)) ;
+  if (nb) nb.classList.add('on');
 }
 function toggleDark() {
-  const light = document.body.classList.toggle('sv-light');
-  try { localStorage.setItem('sv-light-mode', light ? '1' : '0'); } catch(e) {}
+  const dark = document.body.classList.toggle('sv-dark');
+  try { localStorage.setItem('sv-dark-mode', dark ? '1' : '0'); } catch(e) {}
 }
-// Restore saved light mode preference on load
-try { if (localStorage.getItem('sv-light-mode') === '1') document.body.classList.add('sv-light'); } catch(e) {}
+// Restore saved dark mode preference on load (Fable default is light)
+try { if (localStorage.getItem('sv-dark-mode') === '1') document.body.classList.add('sv-dark'); } catch(e) {}
 
 // ── HOME ─────────────────────────────────────────────────────────
 function renderHome() {
@@ -625,7 +636,7 @@ function renderCaddie() {
   const distStr = p.distances ? Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(', ') : '';
   const sys = `You are a concise golf caddie for ${p.name}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}. 2-4 sentences max. Lead with the key number or club.`;
   document.getElementById('pg-caddie').innerHTML = `
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">CADDIE</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Caddie</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">Club selection · course strategy · swing tips</div>
     <div class="caddie-outer">
       <div class="caddie-msgs" id="caddie-msgs"><div class="msg s">Ask anything — yardage, club, strategy, tips.</div></div>
@@ -679,7 +690,7 @@ function renderRange() {
   const tip = {break100:'Contact and airborne — nothing else matters yet.',break90:'No blow-up holes. One clean shot per hole. Eliminate the 8s and 9s.',break80:'Lag putting and the 100-150 range. That\'s where your shots are leaking.',break70:'Wedge matrix and proximity. Inside 120 yards, you should have an exact number for every swing.',consistency:'Same routine every time. Same tempo. Repetition builds consistency.',beginner:'Fundamentals first: grip, stance, contact.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'Your muscle memory is there. Rhythm and contact — not distance.'}[goal]||'Quality over quantity.';
 
   document.getElementById('pg-range').innerHTML = `
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">RANGE & WARM-UP</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Range & warm-up</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${SKILL[skill]||skill} · ${GOAL[goal]||goal}</div>
 
     <div class="card" style="border-color:rgba(201,168,76,0.3);background:rgba(201,168,76,0.05);margin-bottom:14px;">
@@ -703,6 +714,13 @@ function renderRange() {
     <div class="drill"><div class="drill-t">10-Shot Focus Drill</div><div class="drill-b">One swing thought. 10 balls. Rate each shot 1-5. Average 3.5+ = move on.</div></div>
     <div class="drill"><div class="drill-t">Alignment Check</div><div class="drill-b">Club on ground pointing at target. Feet, hips, shoulders parallel. ${hand==='left'?'As a lefty, your shoulders open easily — check every session.':''}</div></div>
     <div class="drill"><div class="drill-t">Gate Drill</div><div class="drill-b">Two tees 6 inches in front of the ball, one each side. Swing through without hitting them. Trains a straight club path.</div></div>
+    <div class="card" onclick="goPage('shortgame');renderShortGame&&renderShortGame();" style="cursor:pointer;margin-top:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div class="card-title"><i class="ti ti-target" style="vertical-align:-2px;margin-right:6px;color:var(--green);"></i>Short game</div>
+        <div class="card-body">Chipping, pitching &amp; putting practice</div>
+      </div>
+      <i class="ti ti-chevron-right" style="color:var(--muted);font-size:1.2rem;"></i>
+    </div>
   `;
 }
 
@@ -731,7 +749,7 @@ function renderStrategy() {
   };
 
   document.getElementById('pg-strategy').innerHTML = `
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">STRATEGY</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Strategy</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${GOAL[goal]||goal} · Course Management</div>
 
     <div class="card" style="border-color:rgba(201,168,76,0.25);background:rgba(201,168,76,0.05);">
@@ -927,7 +945,7 @@ function renderHole() {
   const vsRaw = played.reduce((a,x)=>a+x.score-x.par,0)+(h.score-h.par);
   const vsStr = vsRaw===0?'E':vsRaw>0?'+'+vsRaw:String(vsRaw);
 
-  document.getElementById('rm-label').textContent=`HOLE ${h.hole}`;
+  document.getElementById('rm-label').textContent=`Hole ${h.hole}`;
   const sub=document.getElementById('rm-sub'); sub.textContent=`of ${_holes.length} · par ${h.par}`; sub.style.display='';
   document.getElementById('rm-close-btn').style.display='none';
   const rt=document.getElementById('rm-rt'); rt.style.display='';
@@ -961,7 +979,7 @@ function renderHole() {
       <div id="hc-panel" style="display:${_caddieOpen?'block':'none'};background:var(--surf);border:1px solid rgba(201,168,76,0.15);border-top:none;border-radius:0 0 10px 10px;padding:12px 14px;">
         <div id="hc-msgs" style="max-height:180px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:8px;margin-bottom:10px;font-size:0.83rem;line-height:1.5;"></div>
         <div style="display:flex;gap:8px;align-items:flex-end;">
-          <textarea id="hc-input" rows="2" style="flex:1;background:var(--surf2);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:8px 10px;color:var(--cream);font-family:'Outfit',sans-serif;font-size:0.85rem;resize:none;" placeholder="Yardage? Lie? Wind?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendHoleCaddie();}"></textarea>
+          <textarea id="hc-input" rows="2" style="flex:1;background:var(--surf2);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:8px 10px;color:var(--cream);font-family:'Archivo',sans-serif;font-size:0.85rem;resize:none;" placeholder="Yardage? Lie? Wind?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendHoleCaddie();}"></textarea>
           <button onclick="sendHoleCaddie()" style="background:var(--green);border:none;border-radius:8px;padding:10px 14px;color:var(--cream);font-weight:700;font-size:0.85rem;cursor:pointer;touch-action:manipulation;">Send</button>
         </div>
       </div>
@@ -971,13 +989,13 @@ function renderHole() {
     ${photoStrip}
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;">
       <div style="display:flex;align-items:baseline;gap:8px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--cream);line-height:1;">HOLE ${h.hole}</div>
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:2.2rem;color:var(--cream);line-height:1;">Hole ${h.hole}</div>
         ${h.yds?`<span style="font-size:0.78rem;color:var(--gold);font-weight:700;">${h.yds} yds</span>`:''}
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:0.73rem;color:var(--muted);">Par</span>
         <button onclick="adjPar(-1)" style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;">−</button>
-        <span id="h-par" style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--cream);min-width:18px;text-align:center;">${h.par}</span>
+        <span id="h-par" style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.3rem;color:var(--cream);min-width:18px;text-align:center;">${h.par}</span>
         <button onclick="adjPar(1)"  style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;">+</button>
       </div>
     </div>
@@ -1007,7 +1025,7 @@ function renderHole() {
       <button onclick="adjScore(-1)" class="step-btn" style="touch-action:manipulation;">−</button>
       <div style="flex:0 0 auto;text-align:center;min-width:52px;">
         <div style="font-size:0.42rem;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:1px;">STROKES</div>
-        <div id="h-score" style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;line-height:1;color:var(--cream);">${h.score}</div>
+        <div id="h-score" style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:2.2rem;line-height:1;color:var(--cream);">${h.score}</div>
       </div>
       <button onclick="adjScore(1)"  class="step-btn" style="touch-action:manipulation;">+</button>
       <button onclick="nextHole()" class="btn-gold" style="flex:1;padding:0;height:50px;border-radius:10px;font-size:0.82rem;touch-action:manipulation;">${isLast?'Finish →':'Next →'}</button>
@@ -1128,8 +1146,8 @@ function renderRoundSummary() {
     <div style="text-align:center;margin-bottom:20px;">
       <div style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">${_round.course||'Round'}</div>
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:14px;">${_round.date||''}</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:5rem;line-height:1;color:var(--cream);">${total}</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:${diffColor};">${diffStr}</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:5rem;line-height:1;color:var(--cream);">${total}</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:${diffColor};">${diffStr}</div>
       <div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">Par ${par}</div>
     </div>
     <div class="hole-grid">${holeGrid}</div>
@@ -1223,7 +1241,7 @@ function renderShortGame() {
   </div>`;
 
   document.getElementById('pg-shortgame').innerHTML = `
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">SHORT GAME</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Short game</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">Chipping · Putting · Around the Green</div>
 
     <div class="card" style="border-color:rgba(201,168,76,0.25);background:rgba(201,168,76,0.05);">
@@ -1252,7 +1270,7 @@ function renderMyGame() {
   const best=scored.length?Math.min(...scored.map(r=>r.total)):null;
   const avg=scored.length?Math.round(scored.reduce((a,r)=>a+r.total,0)/scored.length):null;
   document.getElementById('pg-mygame').innerHTML=`
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:4px;">MY GAME</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:4px;">My game</div>
     ${scored.length?`<div class="stats-row" style="margin-top:8px;">
       <div class="stat"><div class="stat-n">${best}</div><div class="stat-l">Best</div></div>
       <div class="stat"><div class="stat-n">${avg}</div><div class="stat-l">Avg</div></div>
@@ -1351,7 +1369,7 @@ function showLoginScreen() {
   el.id = 'login-screen';
   el.style.cssText = 'position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
   el.innerHTML = `
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--gold);letter-spacing:5px;margin-bottom:4px;">SPINVIBES</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:2.2rem;color:var(--gold);letter-spacing:5px;margin-bottom:4px;">SPINVIBES</div>
     <div style="font-size:1rem;font-weight:700;color:var(--cream);margin-bottom:6px;">Welcome back</div>
     <div style="font-size:0.85rem;color:var(--muted);margin-bottom:28px;max-width:280px;line-height:1.5;">Enter your email to get a magic link and jump back into your app.</div>
     <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email"
@@ -1487,8 +1505,8 @@ async function buildScorecardCard(roundData) {
   // Course + date
   let y=photoH;
   ctx.textAlign='center';
-  ctx.fillStyle='#f5f0e8';ctx.font=`500 ${Math.round(40*sf)}px "Bebas Neue",Impact,Arial`;ctx.fillText((roundData.course||'').toUpperCase(),W/2,y);y+=Math.round(26*sf);
-  ctx.fillStyle='rgba(255,255,255,0.38)';ctx.font=`400 ${Math.round(16*sf)}px Outfit,Arial`;ctx.fillText(`${roundData.date||''} · Par ${roundData.par||72}`,W/2,y);y+=Math.round(18*sf);
+  ctx.fillStyle='#f5f0e8';ctx.font=`800 ${Math.round(40*sf)}px Archivo,Arial`;ctx.fillText((roundData.course||'').toUpperCase(),W/2,y);y+=Math.round(26*sf);
+  ctx.fillStyle='rgba(255,255,255,0.38)';ctx.font=`400 ${Math.round(16*sf)}px Archivo,Arial`;ctx.fillText(`${roundData.date||''} · Par ${roundData.par||72}`,W/2,y);y+=Math.round(18*sf);
   ctx.strokeStyle='rgba(201,168,76,0.15)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(36,y);ctx.lineTo(W-36,y);ctx.stroke();y+=10;
 
   // Score grid (front 9 + back 9)
@@ -1496,23 +1514,23 @@ async function buildScorecardCard(roundData) {
   function drawGrid(hs,startY,label){
     const pad=24,nameW=44,subW=34,holeW=(W-pad*2-nameW-subW)/hs.length,rowH=Math.round(24*sf);
     ctx.fillStyle='rgba(255,255,255,0.06)';ctx.fillRect(pad,startY,W-pad*2,rowH);
-    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font=`400 ${Math.round(11*sf)}px Outfit,Arial`;ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font=`400 ${Math.round(11*sf)}px Archivo,Arial`;ctx.textAlign='center';
     hs.forEach((h,i)=>ctx.fillText(String(h.hole),pad+nameW+i*holeW+holeW/2,startY+rowH*0.72));
     ctx.fillText(label,pad+nameW+hs.length*holeW+subW/2,startY+rowH*0.72);
     const parY=startY+rowH;
     ctx.fillStyle='rgba(255,255,255,0.03)';ctx.fillRect(pad,parY,W-pad*2,rowH);
-    ctx.fillStyle='rgba(255,255,255,0.28)';ctx.font=`400 ${Math.round(11*sf)}px Outfit,Arial`;ctx.textAlign='left';ctx.fillText('PAR',pad+4,parY+rowH*0.72);
+    ctx.fillStyle='rgba(255,255,255,0.28)';ctx.font=`400 ${Math.round(11*sf)}px Archivo,Arial`;ctx.textAlign='left';ctx.fillText('PAR',pad+4,parY+rowH*0.72);
     hs.forEach((h,i)=>{ctx.textAlign='center';ctx.fillText(String(h.par),pad+nameW+i*holeW+holeW/2,parY+rowH*0.72);});
     const parSub=hs.reduce((a,h)=>a+h.par,0);ctx.fillText(String(parSub),pad+nameW+hs.length*holeW+subW/2,parY+rowH*0.72);
     const rowY=parY+rowH;
     ctx.fillStyle='rgba(255,255,255,0.02)';ctx.fillRect(pad,rowY,W-pad*2,rowH);
-    ctx.fillStyle='#c9a84c';ctx.font=`500 ${Math.round(11.5*sf)}px Outfit,Arial`;ctx.textAlign='left';ctx.fillText(profile.name.slice(0,6),pad+4,rowY+rowH*0.72);
+    ctx.fillStyle='#c9a84c';ctx.font=`500 ${Math.round(11.5*sf)}px Archivo,Arial`;ctx.textAlign='left';ctx.fillText(profile.name.slice(0,6),pad+4,rowY+rowH*0.72);
     hs.forEach((h,i)=>{
       const d=h.score-h.par,col=d<=-1?'#60a5fa':d===0?'rgba(255,255,255,0.7)':'#f87171';
-      ctx.fillStyle=col;ctx.font=`500 ${Math.round(12*sf)}px Outfit,Arial`;ctx.textAlign='center';ctx.fillText(String(h.score),pad+nameW+i*holeW+holeW/2,rowY+rowH*0.72);
+      ctx.fillStyle=col;ctx.font=`500 ${Math.round(12*sf)}px Archivo,Arial`;ctx.textAlign='center';ctx.fillText(String(h.score),pad+nameW+i*holeW+holeW/2,rowY+rowH*0.72);
     });
     const sub=hs.reduce((a,h)=>a+h.score,0);const subD=sub-hs.reduce((a,h)=>a+h.par,0);
-    ctx.fillStyle=subD<0?'#60a5fa':subD===0?'rgba(255,255,255,0.6)':'#f87171';ctx.font=`500 ${Math.round(12.5*sf)}px Outfit,Arial`;ctx.textAlign='center';ctx.fillText(String(sub),pad+nameW+hs.length*holeW+subW/2,rowY+rowH*0.72);
+    ctx.fillStyle=subD<0?'#60a5fa':subD===0?'rgba(255,255,255,0.6)':'#f87171';ctx.font=`500 ${Math.round(12.5*sf)}px Archivo,Arial`;ctx.textAlign='center';ctx.fillText(String(sub),pad+nameW+hs.length*holeW+subW/2,rowY+rowH*0.72);
     return rowY+rowH;
   }
 
@@ -1527,8 +1545,8 @@ async function buildScorecardCard(roundData) {
   const diffC=diff<0?'#60a5fa':diff===0?'#6ec98a':'#f87171';
   ctx.textAlign='center';
   ctx.fillStyle='rgba(10,14,8,0.55)';_rr(ctx,(W-200)/2,y,200,Math.round(80*sf),12);ctx.fill();
-  ctx.fillStyle='#f5f0e8';ctx.font=`500 ${Math.round(58*sf)}px "Bebas Neue",Impact,Arial`;ctx.fillText(String(total),W/2,y+Math.round(56*sf));
-  ctx.fillStyle=diffC;ctx.font=`500 ${Math.round(18*sf)}px Outfit,Arial`;ctx.fillText(diffStr,W/2,y+Math.round(74*sf));
+  ctx.fillStyle='#f5f0e8';ctx.font=`800 ${Math.round(58*sf)}px Archivo,Arial`;ctx.fillText(String(total),W/2,y+Math.round(56*sf));
+  ctx.fillStyle=diffC;ctx.font=`500 ${Math.round(18*sf)}px Archivo,Arial`;ctx.fillText(diffStr,W/2,y+Math.round(74*sf));
 
   await _cardChrome(ctx,W,H,sf);
   return _toBlob(canvas);
@@ -1542,7 +1560,7 @@ async function buildHoleCard(holeData,roundData){
   ctx.fillStyle=_botGrad(ctx,H);ctx.fillRect(0,0,W,H);
   const SAFE=Math.round(18*sf);
   ctx.fillStyle='rgba(10,14,8,0.58)';_rr(ctx,SAFE,SAFE,Math.round(180*sf),Math.round(34*sf),8);ctx.fill();
-  ctx.fillStyle='#c9a84c';ctx.font=`500 ${Math.round(14*sf)}px Outfit,Arial`;ctx.textAlign='left';ctx.fillText(`Hole ${holeData.hole}  ·  Par ${holeData.par}`,SAFE+12,SAFE+Math.round(24*sf));
+  ctx.fillStyle='#c9a84c';ctx.font=`500 ${Math.round(14*sf)}px Archivo,Arial`;ctx.textAlign='left';ctx.fillText(`Hole ${holeData.hole}  ·  Par ${holeData.par}`,SAFE+12,SAFE+Math.round(24*sf));
   // Score chip
   const sc=holeData.score,diff=sc-holeData.par,diffStr=diff===0?'E':diff>0?'+'+diff:String(diff);
   const scCol=diff<=-2?'#a78bfa':diff===-1?'#fbbf24':diff===0?'#6ec98a':'#f87171';
@@ -1550,11 +1568,11 @@ async function buildHoleCard(holeData,roundData){
   ctx.fillStyle='rgba(10,14,8,0.65)';_rr(ctx,chipX,chipY,chipW,chipH,14);ctx.fill();
   ctx.fillStyle=scCol;ctx.strokeStyle=scCol;ctx.lineWidth=2;_rr(ctx,chipX,chipY,chipW,chipH,14);ctx.stroke();
   ctx.textAlign='center';const mx=chipX+chipW/2;
-  ctx.fillStyle='rgba(255,255,255,0.65)';ctx.font=`500 ${Math.round(15*sf)}px Outfit,Arial`;ctx.fillText(profile.name,mx,chipY+chipH*0.28);
-  ctx.fillStyle=scCol;ctx.font=`500 ${Math.round(60*sf)}px "Bebas Neue",Impact,Arial`;ctx.fillText(String(sc),mx,chipY+chipH*0.73);
+  ctx.fillStyle='rgba(255,255,255,0.65)';ctx.font=`500 ${Math.round(15*sf)}px Archivo,Arial`;ctx.fillText(profile.name,mx,chipY+chipH*0.28);
+  ctx.fillStyle=scCol;ctx.font=`800 ${Math.round(60*sf)}px Archivo,Arial`;ctx.fillText(String(sc),mx,chipY+chipH*0.73);
   const achv=diff<=-2?'EAGLE':diff===-1?'BIRDIE':diff===0?'PAR':null;
-  ctx.fillStyle=achv?'#fbbf24':'rgba(255,255,255,0.4)';ctx.font=`400 ${Math.round(13*sf)}px Outfit,Arial`;ctx.fillText(achv||diffStr,mx,chipY+chipH*0.92);
-  ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font=`400 ${Math.round(13*sf)}px Outfit,Arial`;ctx.fillText(`${(roundData.course||'').toUpperCase()}  ·  ${roundData.date||''}`,W/2,H-Math.round(20*sf));
+  ctx.fillStyle=achv?'#fbbf24':'rgba(255,255,255,0.4)';ctx.font=`400 ${Math.round(13*sf)}px Archivo,Arial`;ctx.fillText(achv||diffStr,mx,chipY+chipH*0.92);
+  ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font=`400 ${Math.round(13*sf)}px Archivo,Arial`;ctx.fillText(`${(roundData.course||'').toUpperCase()}  ·  ${roundData.date||''}`,W/2,H-Math.round(20*sf));
   await _cardChrome(ctx,W,H,sf);return _toBlob(canvas);
 }
 
@@ -1568,7 +1586,7 @@ function showSharePicker(roundData) {
   const holes=(roundData.holeData||[]).filter(h=>h.photo&&(h.photo.startsWith('http')||h.photo.startsWith('data:')));
   sheet.innerHTML=`
     <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 14px;"></div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">Share Round</div>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.2rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">Share Round</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button onclick="doShare('scorecard',${JSON.stringify(roundData).replace(/"/g,'&quot;')});this.closest('[style*=fixed]').remove();" style="background:var(--surf2);border:1px solid rgba(201,168,76,0.2);border-radius:14px;padding:16px;text-align:left;cursor:pointer;color:var(--cream);touch-action:manipulation;">
         <div style="font-weight:700;font-size:0.95rem;margin-bottom:3px;">&#x1F4CA; Full Scorecard</div>
@@ -1587,7 +1605,7 @@ function showHolePicker(roundData){
   const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;';overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
   const sheet=document.createElement('div');sheet.style.cssText='width:100%;background:var(--surf);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:80dvh;overflow-y:auto;';
   sheet.innerHTML=`<div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 14px;"></div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">Pick a Hole</div>`+
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.1rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">Pick a Hole</div>`+
     holes.map(h=>`<div onclick="doShare('hole',${JSON.stringify(roundData).replace(/"/g,'&quot;')},${h.hole});this.closest('[style*=fixed]').remove();" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;touch-action:manipulation;">
       <img src="${h.photo}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;">
       <div style="flex:1;"><div style="font-weight:700;font-size:0.88rem;color:var(--cream);">Hole ${h.hole} · Par ${h.par}</div><div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${h.score} strokes (${h.score-h.par===0?'Par':h.score-h.par>0?'+':''}${h.score-h.par===0?'':h.score-h.par})</div></div>
@@ -1612,8 +1630,8 @@ async function doShare(template, roundData, holeNum) {
     overlay.style.cssText='position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;';
     overlay.innerHTML=`<img src="${objUrl}" style="max-width:100%;max-height:70dvh;border-radius:10px;object-fit:contain;">
       <div style="display:flex;gap:10px;width:100%;max-width:360px;">
-        <button onclick="this.closest('[style*=fixed]').remove();URL.revokeObjectURL('${objUrl}')" style="flex:1;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px;color:#fff;font-family:Outfit,sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;touch-action:manipulation;">Cancel</button>
-        <button id="sv-share-ok" style="flex:2;background:var(--green);border:none;border-radius:12px;padding:14px;color:#e8f5ec;font-family:Outfit,sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;touch-action:manipulation;">Share →</button>
+        <button onclick="this.closest('[style*=fixed]').remove();URL.revokeObjectURL('${objUrl}')" style="flex:1;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px;color:#fff;font-family:Archivo,sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;touch-action:manipulation;">Cancel</button>
+        <button id="sv-share-ok" style="flex:2;background:var(--green);border:none;border-radius:12px;padding:14px;color:#e8f5ec;font-family:Archivo,sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;touch-action:manipulation;">Share →</button>
       </div>`;
     document.body.appendChild(overlay);
     document.getElementById('sv-share-ok').onclick=async()=>{
