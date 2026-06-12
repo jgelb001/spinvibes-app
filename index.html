@@ -291,9 +291,16 @@ const HAND  = { l:'Left-handed', r:'Right-handed', left:'Left-handed', right:'Ri
 const FREQ  = { rare:'2× / month', weekly:'Once a week', multi:'3× a week', daily:'Almost daily' };
 
 // ── CLUBS (from profile distances or defaults) ───────────────────
+// Normalize guide-builder wizard keys (driver,3w,hybrid,7i,9i,pw,sw) → app bag keys
+function normalizeDistances(raw) {
+  const alias = { '3w':'3wood', 'hybrid':'4hybrid', '7i':'7iron', '9i':'9iron' };
+  const d = {};
+  Object.entries(raw || {}).forEach(([k,v])=>{ d[alias[k]||k] = v; });
+  return d;
+}
 function getClubs() {
-  const d = profile?.distances || {};
-  const defaults = { driver:190, '7wood':170, '4hybrid':165, '5iron':155, '6iron':148, '7iron':138, '8iron':128, '9iron':118, 'pw':105, 'gw':90, 'sw':80, 'lw':65 };
+  const d = normalizeDistances(profile?.distances);
+  const defaults = { driver:190, '3wood':180, '7wood':170, '4hybrid':165, '5iron':155, '6iron':148, '7iron':138, '8iron':128, '9iron':118, 'pw':105, 'gw':90, 'sw':80, 'lw':65 };
   return Object.assign({}, defaults, d);
 }
 function suggestClub(yds) {
@@ -551,7 +558,7 @@ try { if (localStorage.getItem('sv-dark-mode') === '1') document.body.classList.
 
 // ── SETTINGS — mirrors the PWA settings overlay (profile + miss tendency + bag) ──
 const MISS_KEY = ()=>'sv-miss-'+(userId||'g');
-const SET_CLUBS = [['driver','Driver'],['7wood','7-Wood'],['4hybrid','4-Hybrid'],['5iron','5-Iron'],['6iron','6-Iron'],['7iron','7-Iron'],['8iron','8-Iron'],['9iron','9-Iron'],['pw','Pitching Wedge'],['gw','Gap Wedge'],['sw','Sand Wedge'],['lw','Lob Wedge']];
+const SET_CLUBS = [['driver','Driver'],['3wood','3-Wood'],['7wood','7-Wood'],['4hybrid','4-Hybrid'],['5iron','5-Iron'],['6iron','6-Iron'],['7iron','7-Iron'],['8iron','8-Iron'],['9iron','9-Iron'],['pw','Pitching Wedge'],['gw','Gap Wedge'],['sw','Sand Wedge'],['lw','Lob Wedge']];
 const MISS_OPTS = [['','No consistent miss'],['slice','Slice — curves away'],['hook','Hook — curves across'],['push','Push — straight but off-line'],['pull','Pull — straight but off-line the other way'],['thin','Thin / topped'],['fat','Fat / chunked']];
 function _missLine() { const m = localStorage.getItem(MISS_KEY()); const lbl = (MISS_OPTS.find(o=>o[0]===m)||[])[1]; return m && lbl ? ` Typical miss: ${lbl}. Factor this into club and aim advice.` : ''; }
 
@@ -565,7 +572,7 @@ function openSettings() {
   el.style.display = 'flex';
   const p = profile || {};
   const handVal = (p.hand==='l'||p.hand==='left') ? 'l' : 'r';
-  const dists = p.distances || {};
+  const dists = normalizeDistances(p.distances);
   const defaults = getClubs();
   const miss = localStorage.getItem(MISS_KEY()) || '';
   const opt = (v,l,cur)=>`<option value="${v}" ${String(cur)===String(v)?'selected':''}>${l}</option>`;
@@ -607,7 +614,7 @@ async function saveSettings() {
   const skill = document.getElementById('set-skill').value;
   const goal  = document.getElementById('set-goal').value;
   const miss  = document.getElementById('set-miss').value;
-  const distances = Object.assign({}, profile.distances || {});
+  const distances = normalizeDistances(profile.distances);
   SET_CLUBS.forEach(([k])=>{
     const raw = document.getElementById('set-d-'+k).value.trim();
     const v = parseInt(raw);
