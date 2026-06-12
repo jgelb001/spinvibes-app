@@ -27,6 +27,21 @@
       --green-b: #1e4d2b;
       --red:     #c0392b;
     }
+    /* LIGHT MODE — toggled via .sv-light on body */
+    body.sv-light {
+      --bg:      #f5f3ec;
+      --surf:    #ffffff;
+      --surf2:   #edeae0;
+      --surf3:   #e2ded2;
+      --border:  rgba(0,0,0,0.08);
+      --cream:   #1c2018;
+      --muted:   #6a7a68;
+      --gold:    #8a6010;
+      --gold-l:  #6b4a0c;
+      --green:   #2d6a3f;
+      --green-b: #3d8a52;
+      --red:     #c0392b;
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: var(--bg); color: var(--cream); font-family: 'Outfit', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; }
 
@@ -515,7 +530,12 @@ function goPage(id) {
   document.getElementById('pg-'+id).classList.add('on');
   document.getElementById('nb-'+id).classList.add('on');
 }
-function toggleDark() { document.body.classList.toggle('sv-light'); }
+function toggleDark() {
+  const light = document.body.classList.toggle('sv-light');
+  try { localStorage.setItem('sv-light-mode', light ? '1' : '0'); } catch(e) {}
+}
+// Restore saved light mode preference on load
+try { if (localStorage.getItem('sv-light-mode') === '1') document.body.classList.add('sv-light'); } catch(e) {}
 
 // ── HOME ─────────────────────────────────────────────────────────
 function renderHome() {

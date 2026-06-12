@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SpinVibes — Sign In</title>
+  <meta name="theme-color" content="#0d1a0f">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #0d1a0f; color: #f0ead8; font-family: 'Outfit', sans-serif; text-align: center; padding: 40px 24px;
+    }
+    .logo { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; color: #c9a84c; letter-spacing: 5px; margin-bottom: 4px; }
+    .title { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .sub { font-size: 0.88rem; color: #8a9e8e; line-height: 1.6; max-width: 300px; margin-bottom: 32px; }
+    .btn {
+      display: block; width: 100%; max-width: 320px; background: linear-gradient(135deg, #2d6a3f, #1e4d2b);
+      color: #c9a84c; padding: 18px 28px; border: none; border-radius: 14px; font-family: inherit;
+      font-weight: 700; font-size: 1.05rem; letter-spacing: 0.5px; cursor: pointer; touch-action: manipulation;
+    }
+    .btn:disabled { opacity: 0.6; cursor: default; }
+    #msg { height: 24px; font-size: 0.84rem; color: #d64f3a; margin-top: 16px; }
+    .spinner { width: 20px; height: 20px; border: 3px solid rgba(201,168,76,0.2); border-top-color: #c9a84c; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: -4px; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="logo">SPINVIBES</div>
+  <div class="title">Almost there!</div>
+  <div class="sub">Tap the button below to finish signing in and open your SpinVibes app.</div>
+  <button class="btn" id="go-btn" onclick="confirmSignIn()">&#x26F3; Open My SpinVibes App &#x2192;</button>
+  <div id="msg"></div>
+
+  <script>
+    const SUPABASE_URL  = 'https://zairvjyiwhajsulefyoi.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphaXJ2anlpd2hhanN1bGVmeW9pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMDkxODAsImV4cCI6MjA5MTY4NTE4MH0.AAdJfqSGHMergPgL4tEoBMn0Wr5d8D1NuxhPMonp_60';
+    const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    const Q = new URLSearchParams(location.search);
+    const tokenHash = Q.get('token_hash');
+    const type = Q.get('type') || 'email';
+    const next = Q.get('next') || '/';
+
+    if (!tokenHash) {
+      document.getElementById('go-btn').style.display = 'none';
+      document.getElementById('msg').textContent = 'This link is missing its sign-in code. Request a new one from the app.';
+    }
+
+    async function confirmSignIn() {
+      const btn = document.getElementById('go-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Signing you in…';
+      try {
+        const { error } = await _sb.auth.verifyOtp({ token_hash: tokenHash, type });
+        if (error) throw error;
+        // Session is stored — go to the app (same-origin only, session persists)
+        const safeNext = next.startsWith('/') ? next
+          : (next.startsWith(location.origin) ? next : '/');
+        location.replace(safeNext);
+      } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '&#x26F3; Open My SpinVibes App &#x2192;';
+        document.getElementById('msg').textContent =
+          (e.message || '').includes('expired') || (e.message || '').includes('invalid')
+            ? 'This link has expired — request a fresh one from the app sign-in screen.'
+            : 'Something went wrong — ' + (e.message || 'try again.');
+      }
+    }
+  </script>
+</body>
+</html>
