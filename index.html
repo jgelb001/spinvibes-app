@@ -276,7 +276,7 @@ let _holes = [], _holeIdx = 0, _round = {}, _manYards = null, _caddieOpen = fals
 const DRAFT_KEY = () => 'sv-app-draft-' + (userId||'g');
 
 // ── LABELS ───────────────────────────────────────────────────────
-const GOAL  = { break100:'Break 100', break90:'Break 90', break80:'Break 80', consistency:'More Consistent', beginner:'Learn the Game', fun:'Have Fun', return:'Get Back Out There' };
+const GOAL  = { break120:'Break 120', break100:'Break 100', break90:'Break 90', break80:'Break 80', break70:'Break 70', consistency:'More Consistent', beginner:'Learn the Game', fun:'Have Fun', return:'Get Back Out There' };
 const SKILL = { beginner:'Beginner', some:'Some Experience', mid:'Mid-Handicap', low:'Low Handicap', advanced:'Advanced' };
 const HAND  = { l:'Left-handed', r:'Right-handed', left:'Left-handed', right:'Right-handed' };
 const FREQ  = { rare:'2× / month', weekly:'Once a week', multi:'3× a week', daily:'Almost daily' };
@@ -676,7 +676,7 @@ function renderRange() {
     ],
   };
   const plan = plans[skill]||plans.mid;
-  const tip = {break100:'Contact and airborne — nothing else matters yet.',break90:'No blow-up holes. One clean shot per hole. Eliminate the 8s and 9s.',break80:'Lag putting and the 100-150 range. That\'s where your shots are leaking.',consistency:'Same routine every time. Same tempo. Repetition builds consistency.',beginner:'Fundamentals first: grip, stance, contact.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'Your muscle memory is there. Rhythm and contact — not distance.'}[goal]||'Quality over quantity.';
+  const tip = {break100:'Contact and airborne — nothing else matters yet.',break90:'No blow-up holes. One clean shot per hole. Eliminate the 8s and 9s.',break80:'Lag putting and the 100-150 range. That\'s where your shots are leaking.',break70:'Wedge matrix and proximity. Inside 120 yards, you should have an exact number for every swing.',consistency:'Same routine every time. Same tempo. Repetition builds consistency.',beginner:'Fundamentals first: grip, stance, contact.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'Your muscle memory is there. Rhythm and contact — not distance.'}[goal]||'Quality over quantity.';
 
   document.getElementById('pg-range').innerHTML = `
     <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--gold);margin-bottom:3px;">RANGE & WARM-UP</div>
@@ -715,6 +715,7 @@ function renderStrategy() {
     break100:'Your main goal: get the ball in play every hole. Tee it up with whatever club you can hit consistently — even a 7-iron off the tee. A ball in the fairway is always better than a long ball in trouble.',
     break90: 'The difference between 90 and 95 is 5 blow-up holes. Your job: identify which holes you tend to make big numbers and play them conservatively. One bogey is a win. A double is fine. A triple is what kills you.',
     break80: 'You\'re scoring with your wedges and putter. Focus on always having an angle to the green — avoid short-side misses (missing on the same side as the pin). Give yourself the easy chip.',
+    break70: 'Tournament golf is marginal gains. Attack pins only with short irons, build exact wedge numbers for 60-120 yards, and eliminate every 3-putt. Stay neutral — same routine on every shot.',
     fun:'Play the shot you\'re most confident with, not the most impressive one.',
   }[goal]||'Play within your game. The course is designed to punish hero shots.';
 
