@@ -219,6 +219,7 @@
       <div class="tb-user" id="tb-user"></div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
+      <button class="tb-btn" onclick="openSettings()" title="Settings"><i class="ti ti-settings"></i></button>
       <button class="tb-btn" id="tb-auth-btn" onclick="showAuthModal()" title="Sign in"><i class="ti ti-user-plus"></i></button>
       <button class="tb-btn" onclick="toggleDark()"><i class="ti ti-sun"></i></button>
     </div>
@@ -548,6 +549,92 @@ function toggleDark() {
 // Restore saved dark mode preference on load (Fable default is light)
 try { if (localStorage.getItem('sv-dark-mode') === '1') document.body.classList.add('sv-dark'); } catch(e) {}
 
+// ── SETTINGS — mirrors the PWA settings overlay (profile + miss tendency + bag) ──
+const MISS_KEY = ()=>'sv-miss-'+(userId||'g');
+const SET_CLUBS = [['driver','Driver'],['7wood','7-Wood'],['4hybrid','4-Hybrid'],['5iron','5-Iron'],['6iron','6-Iron'],['7iron','7-Iron'],['8iron','8-Iron'],['9iron','9-Iron'],['pw','Pitching Wedge'],['gw','Gap Wedge'],['sw','Sand Wedge'],['lw','Lob Wedge']];
+const MISS_OPTS = [['','No consistent miss'],['slice','Slice — curves away'],['hook','Hook — curves across'],['push','Push — straight but off-line'],['pull','Pull — straight but off-line the other way'],['thin','Thin / topped'],['fat','Fat / chunked']];
+function _missLine() { const m = localStorage.getItem(MISS_KEY()); const lbl = (MISS_OPTS.find(o=>o[0]===m)||[])[1]; return m && lbl ? ` Typical miss: ${lbl}. Factor this into club and aim advice.` : ''; }
+
+function openSettings() {
+  let el = document.getElementById('settings-overlay');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'settings-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:600;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);max-width:500px;margin:0 auto;';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  const p = profile || {};
+  const handVal = (p.hand==='l'||p.hand==='left') ? 'l' : 'r';
+  const dists = p.distances || {};
+  const defaults = getClubs();
+  const miss = localStorage.getItem(MISS_KEY()) || '';
+  const opt = (v,l,cur)=>`<option value="${v}" ${String(cur)===String(v)?'selected':''}>${l}</option>`;
+  el.innerHTML = `
+    <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--ink);">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.5rem;color:#fff;">Settings</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button onclick="saveSettings()" style="background:var(--green);border:none;border-radius:8px;color:#fff;font-family:'Archivo',sans-serif;font-size:0.8rem;font-weight:700;padding:7px 16px;cursor:pointer;touch-action:manipulation;">Save</button>
+        <button onclick="closeSettings()" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:1.3rem;cursor:pointer;touch-action:manipulation;">✕</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px;padding-bottom:calc(30px + env(safe-area-inset-bottom,0px));">
+      <div class="sec-title" style="margin-top:0;">My profile</div>
+      <label class="ml">Name</label>
+      <input id="set-name" class="mi" type="text" value="${esc(p.name||'')}">
+      <label class="ml">Dominant hand</label>
+      <select id="set-hand" class="mi">${opt('r','Right-handed',handVal)}${opt('l','Left-handed',handVal)}</select>
+      <label class="ml">Skill level</label>
+      <select id="set-skill" class="mi">${Object.entries(SKILL).filter(([v])=>!['left','right'].includes(v)).map(([v,l])=>opt(v,l,p.skill||'mid')).join('')}</select>
+      <label class="ml">Goal</label>
+      <select id="set-goal" class="mi">${Object.entries(GOAL).map(([v,l])=>opt(v,l,p.goal||'fun')).join('')}</select>
+      <label class="ml">Miss tendency — feeds your caddie</label>
+      <select id="set-miss" class="mi">${MISS_OPTS.map(([v,l])=>opt(v,l,miss)).join('')}</select>
+
+      <div class="sec-title">My bag — carry distances (yds)</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Used by the caddie and club suggestions. Leave blank to keep the default shown.</div>
+      ${SET_CLUBS.map(([k,l])=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+          <span style="font-size:0.85rem;font-weight:600;color:var(--cream);">${l}</span>
+          <input id="set-d-${k}" class="mi" type="text" inputmode="numeric" value="${dists[k]||''}" placeholder="${defaults[k]||''}" style="width:84px;text-align:center;margin-bottom:0;">
+        </div>`).join('')}
+    </div>`;
+}
+function closeSettings() { const el=document.getElementById('settings-overlay'); if(el) el.style.display='none'; }
+
+async function saveSettings() {
+  const name  = document.getElementById('set-name').value.trim() || profile.name;
+  const hand  = document.getElementById('set-hand').value;
+  const skill = document.getElementById('set-skill').value;
+  const goal  = document.getElementById('set-goal').value;
+  const miss  = document.getElementById('set-miss').value;
+  const distances = Object.assign({}, profile.distances || {});
+  SET_CLUBS.forEach(([k])=>{
+    const raw = document.getElementById('set-d-'+k).value.trim();
+    const v = parseInt(raw);
+    if (v && v > 20 && v < 400) distances[k] = v;
+    else if (!raw) delete distances[k];
+  });
+  // Local first — always works
+  profile = Object.assign({}, profile, { name, hand, skill, goal, distances });
+  try { localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile)); } catch(e) {}
+  try { miss ? localStorage.setItem(MISS_KEY(), miss) : localStorage.removeItem(MISS_KEY()); } catch(e) {}
+  // Then Supabase (guide_users row)
+  let synced = false;
+  if (userId && !String(userId).startsWith('preview_')) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { ...SB_HDR, Prefer: 'return=minimal' },
+        body: JSON.stringify({ name, hand, skill, goal, distances: Object.keys(distances).length ? distances : null }),
+      });
+      synced = res.ok;
+    } catch(e) {}
+  }
+  closeSettings();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderMyGame();
+  showToast(synced ? 'Saved ✓' : 'Saved on this device');
+}
+
 // ── HOME ─────────────────────────────────────────────────────────
 function renderHome() {
   const p = profile;
@@ -634,7 +721,7 @@ function renderCaddie() {
   const p = profile;
   const bagStr  = p.bag||'standard set';
   const distStr = p.distances ? Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(', ') : '';
-  const sys = `You are a concise golf caddie for ${p.name}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}. 2-4 sentences max. Lead with the key number or club.`;
+  const sys = `You are a concise golf caddie for ${p.name}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()} 2-4 sentences max. Lead with the key number or club.`;
   document.getElementById('pg-caddie').innerHTML = `
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Caddie</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">Club selection · course strategy · swing tips</div>
@@ -831,7 +918,7 @@ function renderSetup() {
     <label class="ml">Course</label>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <input type="text" id="rs-search" class="mi" style="margin-bottom:0;flex:1;" placeholder="Search course name…" onkeydown="if(event.key==='Enter'){event.preventDefault();searchCourse();}">
-      <button onclick="searchCourse()" style="flex-shrink:0;background:var(--gold);border:none;border-radius:10px;padding:0 14px;color:#1a1300;font-weight:700;font-size:0.85rem;cursor:pointer;touch-action:manipulation;">Search</button>
+      <button onclick="searchCourse()" style="flex-shrink:0;background:var(--green);border:none;border-radius:10px;padding:0 14px;color:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;touch-action:manipulation;">Search</button>
     </div>
     <div id="rs-status" style="font-size:0.73rem;color:var(--muted);margin-bottom:6px;"></div>
     <div id="rs-results" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
@@ -845,24 +932,28 @@ function renderSetup() {
       <label class="ml">Tee Box</label>
       <div id="rs-tees" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     </div>
-    <label class="ml">Holes</label>
+    <label class="ml">Format</label>
     <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <button id="rs-18" onclick="setHoles(18,this)" style="flex:1;background:var(--gold);border:none;border-radius:10px;padding:11px;color:#1a1300;font-weight:700;cursor:pointer;touch-action:manipulation;">18 holes</button>
-      <button id="rs-9"  onclick="setHoles(9,this)"  style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">9 holes</button>
+      <button id="rs-18" onclick="setHoles(18,false)" style="flex:1;background:var(--green);border:none;border-radius:10px;padding:11px;color:#fff;font-weight:700;cursor:pointer;touch-action:manipulation;">18 holes</button>
+      <button id="rs-9"  onclick="setHoles(9,false)"  style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">9 holes</button>
+      <button id="rs-p3" onclick="setHoles(9,true)"   style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">Par-3</button>
     </div>
     <button class="btn-gold" style="width:100%;" onclick="startRound()">Start Round →</button>
+    <button onclick="startRound(true)" style="width:100%;background:none;border:none;margin-top:10px;color:var(--muted);font-size:0.78rem;text-decoration:underline;cursor:pointer;touch-action:manipulation;">Start without a course — quick round</button>
   `;
   window._setupHoles = 18;
+  window._setupPar3 = false;
   window._setupCourse = null;
 }
-function setHoles(n, btn) {
+function setHoles(n, par3) {
   window._setupHoles = n;
-  document.getElementById('rs-18').style.background = n===18?'var(--gold)':'var(--surf2)';
-  document.getElementById('rs-18').style.color = n===18?'#1a1300':'var(--muted)';
-  document.getElementById('rs-18').style.border = n===18?'none':'1px solid var(--border)';
-  document.getElementById('rs-9').style.background = n===9?'var(--gold)':'var(--surf2)';
-  document.getElementById('rs-9').style.color = n===9?'#1a1300':'var(--muted)';
-  document.getElementById('rs-9').style.border = n===9?'none':'1px solid var(--border)';
+  window._setupPar3 = !!par3;
+  [['rs-18', n===18&&!par3], ['rs-9', n===9&&!par3], ['rs-p3', !!par3]].forEach(([id,on])=>{
+    const b=document.getElementById(id); if(!b) return;
+    b.style.background = on?'var(--green)':'var(--surf2)';
+    b.style.color = on?'#fff':'var(--muted)';
+    b.style.border = on?'none':'1px solid var(--border)';
+  });
 }
 async function searchCourse() {
   const q=(document.getElementById('rs-search')?.value||'').trim();
@@ -920,16 +1011,18 @@ function clearCourseSelection() {
   const tw=document.getElementById('rs-tee-wrap'); if(tw)tw.style.display='none';
   const st=document.getElementById('rs-status'); if(st)st.textContent='';
 }
-function startRound() {
+function startRound(quick) {
   const date  = document.getElementById('rs-date').value;
   const numH  = window._setupHoles||18;
+  const par3  = !!window._setupPar3;
   const cData = window._setupCourse;
-  if (!cData) { showToast('Search and select a course first','error'); return; }
-  const tee   = cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null;
-  const holePars = tee?.holePars||Array(numH).fill(4);
-  const yardages = tee?.yardages||Array(numH).fill(null);
-  _round = { date, course: cData.name+(cData.course?' — '+cData.course:''), par: (tee?.par||holePars.reduce((a,b)=>a+b,0)), tee: tee?.name||null };
-  _holes = Array.from({length:numH},(_,i)=>({ hole:i+1, par:holePars[i]||4, score:holePars[i]||4, yds:yardages[i]||null, photos:[], putts:null, fairway:null, approachYds:null, approachClub:null }));
+  if (!cData && !quick) { showToast('Search and select a course first — or use quick round','error'); return; }
+  const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
+  const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
+  const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
+  const courseName = cData ? cData.name+(cData.course?' — '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Quick Round'));
+  _round = { date, course: courseName, par: (par3 ? numH*3 : (tee?.par||holePars.reduce((a,b)=>a+b,0))), tee: tee?.name||null, round_type: par3?'par3':(numH===9?'nine':'regulation_18') };
+  _holes = Array.from({length:numH},(_,i)=>({ hole:i+1, par:holePars[i]||4, score:holePars[i]||4, yds:yardages[i]||null, photos:[], putts:null, fairway:null, approachYds:null, approachClub:null, missDir:null, missDepth:null }));
   _holeIdx=0; _manYards=null; _caddieOpen=false; _caddieHist=[];
   document.getElementById('rm-rt').style.display='';
   document.getElementById('rm-close-btn').style.display='none';
@@ -1011,6 +1104,7 @@ function renderHole() {
       <input type="text" id="h-yards-in" class="mi" placeholder="Or type exact…" inputmode="numeric" style="margin-bottom:0;text-align:center;font-size:1rem;font-weight:700;padding:8px;" oninput="setYards(parseInt(this.value)||null)">
     </div>
     ${clubHtml}
+    ${_dispersionHtml(h)}
     ${caddiePanel}
   `;
 
@@ -1064,6 +1158,35 @@ function nextHole() {
   else { _holeIdx++; saveDraft(); renderHole(); }
 }
 
+// ── SHOT DISPERSION — mirrors the PWA's miss direction/depth tracking ──
+function _dispChip(group, val, label, cur) {
+  const on = cur === val;
+  return `<button onclick="setMiss('${group}','${val}')" data-miss="${group}-${val}" style="flex:1;padding:8px 4px;border-radius:8px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'var(--green)':'var(--surf2)'};color:${on?'#fff':'var(--muted)'};font-size:0.7rem;font-weight:700;cursor:pointer;touch-action:manipulation;">${label}</button>`;
+}
+function _dispersionHtml(h) {
+  return `
+    <div class="card" style="margin-top:10px;">
+      <div style="font-size:0.6rem;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Approach result <span style="font-weight:400;letter-spacing:0;text-transform:none;">(optional — builds your miss pattern)</span></div>
+      <div id="md-row" style="display:flex;gap:6px;margin-bottom:6px;">
+        ${_dispChip('missDir','left','← Left',h.missDir)}${_dispChip('missDir','on','✓ On line',h.missDir)}${_dispChip('missDir','right','Right →',h.missDir)}
+      </div>
+      <div id="mdepth-row" style="display:flex;gap:6px;">
+        ${_dispChip('missDepth','short','Short',h.missDepth)}${_dispChip('missDepth','pin','Pin high',h.missDepth)}${_dispChip('missDepth','long','Long',h.missDepth)}
+      </div>
+    </div>`;
+}
+function setMiss(group, val) {
+  const h = _holes[_holeIdx];
+  h[group] = h[group] === val ? null : val;   // tap again to clear
+  saveDraft();
+  document.querySelectorAll(`[data-miss^="${group}-"]`).forEach(b=>{
+    const on = b.dataset.miss === group+'-'+(h[group]||'');
+    b.style.background = on?'var(--green)':'var(--surf2)';
+    b.style.color = on?'#fff':'var(--muted)';
+    b.style.borderColor = on?'var(--green)':'var(--border)';
+  });
+}
+
 function toggleHoleCaddie() {
   _caddieOpen=!_caddieOpen;
   const p=document.getElementById('hc-panel'), c=document.getElementById('hc-caret');
@@ -1083,7 +1206,7 @@ async function sendHoleCaddie() {
   const p=profile, h=_holes[_holeIdx];
   const bagStr=p.bag||'standard set';
   const distStr=p.distances?Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(','):'';
-  const sys=`Caddie for ${p.name} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}. 2-4 sentences. Lead with the recommendation.`;
+  const sys=`Caddie for ${p.name} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()} 2-4 sentences. Lead with the recommendation.`;
   el.innerHTML+=`<div class="msg u">${esc(msg)}</div>`;
   const t=document.createElement('div'); t.className='msg c'; t.textContent='…'; el.appendChild(t); el.scrollTop=el.scrollHeight;
   _caddieHist.push({role:'user',content:msg}); if(_caddieHist.length>8) _caddieHist=_caddieHist.slice(-8);
@@ -1203,7 +1326,7 @@ async function saveCompletedRound() {
     id: roundId,
     date: _round.date || new Date().toISOString().split('T')[0],
     course: _round.course||'', total, par, holes: _holes.length, tee: _round.tee||null,
-    holeData: _holes.map(h=>({hole:h.hole, par:h.par, score:h.score, yds:h.yds, approachYds:h.approachYds, photo:h.photos?.[0]||null})),
+    holeData: _holes.map(h=>({hole:h.hole, par:h.par, score:h.score, yds:h.yds, approachYds:h.approachYds, approachClub:h.approachClub||null, missDir:h.missDir||null, missDepth:h.missDepth||null, photo:h.photos?.[0]||null})),
     notes: document.getElementById('rs-notes')?.value.trim()||'',
   };
   await persistRound(r);
@@ -1277,8 +1400,38 @@ function renderMyGame() {
       <div class="stat"><div class="stat-n">${scored.length}</div><div class="stat-l">Rounds</div></div>
     </div>`:''}
     <button class="btn-gold" style="width:100%;margin-bottom:14px;" onclick="openRound()"><i class="ti ti-flag-2" style="vertical-align:-2px;margin-right:6px;"></i>Start a Round</button>
+    ${_dispersionStatsHtml(rs)}
     ${rs.length?rs.map(r=>roundCard(r)).join(''):`<div class="card"><div class="card-body" style="color:var(--muted);text-align:center;padding:12px 0;">No rounds yet — track your first round above.</div></div>`}
   `;
+}
+
+// Aggregate miss pattern across all saved rounds — mirrors the PWA's dispersion stats
+function _dispersionStatsHtml(rs) {
+  const dirs={left:0,on:0,right:0}, depths={short:0,pin:0,long:0};
+  rs.forEach(r=>(r.holeData||[]).forEach(h=>{
+    if(h.missDir && dirs[h.missDir]!==undefined) dirs[h.missDir]++;
+    if(h.missDepth && depths[h.missDepth]!==undefined) depths[h.missDepth]++;
+  }));
+  const dTot=dirs.left+dirs.on+dirs.right, pTot=depths.short+depths.pin+depths.long;
+  if (dTot<3 && pTot<3) return '';
+  const bar=(counts,tot,labels)=>Object.entries(counts).map(([k,v],i)=>{
+    const pct=tot?Math.round(v/tot*100):0;
+    return `<div style="flex:1;text-align:center;">
+      <div style="height:44px;display:flex;align-items:flex-end;justify-content:center;"><div style="width:60%;height:${Math.max(4,pct*0.44)}px;background:${pct>=50?'var(--green)':'var(--surf3)'};border-radius:4px 4px 0 0;"></div></div>
+      <div style="font-size:0.72rem;font-weight:700;color:var(--cream);margin-top:3px;">${pct}%</div>
+      <div style="font-size:0.6rem;color:var(--muted);">${labels[i]}</div>
+    </div>`;}).join('');
+  let callout='';
+  if (dTot>=3) {
+    const worst=Object.entries(dirs).filter(([k])=>k!=='on').sort((a,b)=>b[1]-a[1])[0];
+    if (worst && worst[1]/dTot>=0.5) callout=`<div style="font-size:0.76rem;color:var(--green);font-weight:600;margin-top:8px;">Pattern: you miss ${worst[0]} ${Math.round(worst[1]/dTot*100)}% of the time — aim adjust or tell your caddie.</div>`;
+  }
+  return `<div class="card" style="margin-bottom:14px;">
+    <div class="card-title">Shot dispersion</div>
+    ${dTot>=3?`<div style="font-size:0.62rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:8px 0 2px;">Direction (${dTot} shots)</div><div style="display:flex;gap:6px;">${bar(dirs,dTot,['← Left','On line','Right →'])}</div>`:''}
+    ${pTot>=3?`<div style="font-size:0.62rem;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:10px 0 2px;">Depth (${pTot} shots)</div><div style="display:flex;gap:6px;">${bar(depths,pTot,['Short','Pin high','Long'])}</div>`:''}
+    ${callout}
+  </div>`;
 }
 function roundCard(r) {
   const vs=r.total-(r.par||72), vsStr=vs===0?'E':vs>0?'+'+vs:String(vs);
