@@ -967,6 +967,9 @@ function renderSetup() {
       <div id="rs-parse-status" style="text-align:center;font-size:0.78rem;color:var(--muted);margin-top:8px;"></div>
     </div>
 
+    <!-- Editable review of a scanned scorecard -->
+    <div id="rs-scan-review" style="display:none;margin-bottom:12px;"></div>
+
     <div id="rs-course-selected" style="display:none;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:11px 14px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div><div id="rs-cname" style="font-weight:700;font-size:0.9rem;color:var(--cream);"></div><div id="rs-csub" style="font-size:0.7rem;color:var(--muted);margin-top:2px;"></div></div>
@@ -1026,14 +1029,50 @@ async function parseScorecard(){
     window._setupCourse={id:null,name,loc,course:null,data:{allTees:[{name:teeColor,rating:c.rating||null,slope:c.slope||null,par,holePars,yardages,yards:yardages.reduce((a,b)=>a+(b||0),0)||null}]}};
     window._setupTee=teeColor;
     setHoles(numH===9?9:18,false);
-    const sd=document.getElementById('rs-course-selected');
-    if(sd){sd.style.display='';document.getElementById('rs-cname').textContent=name;document.getElementById('rs-csub').textContent=(loc?loc+' · ':'')+'Scanned · '+numH+' holes · par '+par;}
-    const tw=document.getElementById('rs-tee-wrap'), tr=document.getElementById('rs-tees');
-    if(tw&&tr){tw.style.display='';tr.innerHTML=`<button type="button" style="background:var(--green);border:none;border-radius:8px;padding:5px 12px;color:#fff;font-size:0.75rem;font-weight:700;">${teeColor}${par?` <span style='opacity:0.7;font-weight:400;'>par ${par}</span>`:''}</button>`;}
-    st.innerHTML='<span style="color:var(--green);font-weight:600;">Scorecard read ✓ — pick your format and tap Start Round.</span>';
+    renderScanReview(name, loc, numH, teeColor);
+    st.innerHTML='';
     btn.style.display='none'; document.getElementById('rs-photo-preview').style.display='none';
   }catch(e){st.textContent='Network error — check your signal';console.error(e);}
   finally{btn.disabled=false;btn.textContent='Read scorecard with AI →';}
+}
+// Editable review of a scanned scorecard — correct misreads before Start Round
+function renderScanReview(name, loc, numH, teeColor){
+  const tee = window._setupCourse?.data?.allTees?.[0]; if(!tee) return;
+  const el = document.getElementById('rs-scan-review'); if(!el) return;
+  const inStyle = "background:var(--surf2);border:1px solid var(--border);border-radius:8px;color:var(--cream);font-family:inherit;text-align:center;padding:6px 4px;font-size:0.82rem;";
+  const rows = tee.holePars.map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);">
+      <span style="flex:1;font-size:0.8rem;color:var(--muted);">Hole ${i+1}</span>
+      <input type="number" inputmode="numeric" min="3" max="6" value="${p||''}" onchange="scanEditHole(${i},'par',this.value)" style="${inStyle}width:52px;">
+      <input type="number" inputmode="numeric" value="${tee.yardages[i]||''}" placeholder="—" onchange="scanEditHole(${i},'yds',this.value)" style="${inStyle}width:68px;">
+    </div>`).join('');
+  el.innerHTML = `
+    <div style="background:rgba(36,150,87,0.06);border:1px solid rgba(36,150,87,0.3);border-radius:12px;padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:0.66rem;font-weight:700;letter-spacing:0.5px;color:var(--green);text-transform:uppercase;">Scanned ✓ — check &amp; edit</div>
+        <button type="button" onclick="clearScanReview()" style="background:none;border:none;color:var(--muted);font-size:1.05rem;line-height:1;cursor:pointer;touch-action:manipulation;">✕</button>
+      </div>
+      <label class="ml">Course${loc?` · ${loc}`:''}</label>
+      <input type="text" id="scan-name" class="mi" value="${name.replace(/"/g,'&quot;')}" oninput="if(window._setupCourse)window._setupCourse.name=this.value;">
+      <div style="display:flex;gap:8px;align-items:center;margin:6px 2px 2px;font-size:0.6rem;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">
+        <span style="flex:1;">${teeColor} tee · ${numH} holes</span><span style="width:52px;text-align:center;">Par</span><span style="width:68px;text-align:center;">Yards</span>
+      </div>
+      <div style="max-height:230px;overflow-y:auto;-webkit-overflow-scrolling:touch;">${rows}</div>
+      <div style="text-align:right;font-size:0.82rem;color:var(--cream);font-weight:700;margin-top:8px;">Total par: <span id="scan-par">${tee.par}</span></div>
+    </div>`;
+  el.style.display='';
+}
+function scanEditHole(i, field, val){
+  const tee = window._setupCourse?.data?.allTees?.[0]; if(!tee) return;
+  const n = parseInt(val,10);
+  if(field==='par'){ tee.holePars[i] = isNaN(n)?tee.holePars[i]:n; tee.par = tee.holePars.reduce((a,b)=>a+(b||0),0); const pe=document.getElementById('scan-par'); if(pe) pe.textContent=tee.par; }
+  else { tee.yardages[i] = isNaN(n)?null:n; tee.yards = tee.yardages.reduce((a,b)=>a+(b||0),0)||null; }
+}
+function clearScanReview(){
+  window._setupCourse=null; window._setupTee=null;
+  const el=document.getElementById('rs-scan-review'); if(el){el.style.display='none';el.innerHTML='';}
+  const tw=document.getElementById('rs-tee-wrap'); if(tw)tw.style.display='none';
+  const pin=document.getElementById('rs-photo-input'); if(pin)pin.value='';
 }
 function setHoles(n, par3) {
   window._setupHoles = n;
@@ -1592,11 +1631,49 @@ function roundCard(r) {
     </div>
     ${hg?`<div class="hole-grid">${hg}</div>`:''}
     ${r.notes?`<div style="font-size:0.8rem;color:var(--muted);border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">${esc(r.notes)}</div>`:''}
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;gap:8px;">
       <button onclick="delRound('${r.id}')" style="background:none;border:none;color:rgba(192,57,43,0.5);font-size:0.72rem;cursor:pointer;touch-action:manipulation;">Delete</button>
-      <button id="share-btn-${r.id}" onclick="showSharePicker(${JSON.stringify(r).replace(/"/g,'&quot;')},)" style="background:none;border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:4px 10px;color:var(--gold-l);font-size:0.72rem;font-weight:600;cursor:pointer;touch-action:manipulation;">&#x1F4E4; Share</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        ${_hcEligible(r)?`<button onclick="openHandicapFix('${r.id}')" style="background:none;border:1px solid rgba(36,150,87,0.4);border-radius:8px;padding:4px 10px;color:var(--green);font-size:0.72rem;font-weight:600;cursor:pointer;touch-action:manipulation;">+ Handicap data</button>`:''}
+        <button id="share-btn-${r.id}" onclick="showSharePicker(${JSON.stringify(r).replace(/"/g,'&quot;')},)" style="background:none;border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:4px 10px;color:var(--gold-l);font-size:0.72rem;font-weight:600;cursor:pointer;touch-action:manipulation;">&#x1F4E4; Share</button>
+      </div>
     </div>
   </div>`;
+}
+// A round can feed the handicap index if it's a regulation 18 with no rating/slope yet
+function _hcEligible(r){ return !r.practice && (r.holes||18)===18 && (r.round_type==='regulation_18' || !r.round_type) && (!r.rating || !r.slope); }
+function openHandicapFix(id){
+  const r = rounds.find(x=>x.id===id); if(!r) return;
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;';
+  overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
+  const sheet=document.createElement('div');
+  sheet.style.cssText='width:100%;max-width:500px;margin:0 auto;background:var(--surf);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));';
+  sheet.innerHTML=`
+    <div style="width:36px;height:4px;background:rgba(0,0,0,0.12);border-radius:2px;margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.1rem;color:var(--cream);">Handicap data</div>
+      <button onclick="this.closest('[style*=fixed]').remove();" style="background:none;border:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;touch-action:manipulation;">✕</button>
+    </div>
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:14px;">${r.course||'This round'} — add the course rating &amp; slope (printed on the scorecard for your tee) so it counts toward your index.</div>
+    <div style="display:flex;gap:10px;">
+      <div style="flex:1;"><label class="ml">Course rating</label><input type="number" inputmode="decimal" id="hc-rating" class="mi" placeholder="e.g. 70.1" value="${r.rating||''}"></div>
+      <div style="flex:1;"><label class="ml">Slope</label><input type="number" inputmode="numeric" id="hc-slope" class="mi" placeholder="e.g. 123" value="${r.slope||''}"></div>
+    </div>
+    <button class="btn-gold" style="width:100%;margin-top:6px;" onclick="saveHandicapFix('${id}',this)">Save</button>`;
+  overlay.appendChild(sheet); document.body.appendChild(overlay);
+}
+async function saveHandicapFix(id, btn){
+  const rating=parseFloat(document.getElementById('hc-rating').value);
+  const slope=parseInt(document.getElementById('hc-slope').value,10);
+  if(isNaN(rating)||isNaN(slope)||rating<50||rating>90||slope<55||slope>155){ showToast('Enter a valid rating (50–90) and slope (55–155)','error'); return; }
+  const r=rounds.find(x=>x.id===id); if(!r) return;
+  r.rating=Math.round(rating*10)/10; r.slope=slope; if(!r.round_type) r.round_type='regulation_18';
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{ await persistRound(r); }catch(e){}
+  persistRounds();
+  document.querySelector('#hc-rating')?.closest('[style*=fixed]')?.remove();
+  renderMyGame(); showToast('Added to your handicap ✓');
 }
 function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); renderMyGame(); renderHome(); showToast('Deleted'); }
 
