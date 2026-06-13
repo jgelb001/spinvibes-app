@@ -81,6 +81,15 @@
     .nav-play { flex: 0 0 auto; width: 46px; height: 46px; margin: 0 6px; border-radius: 50%; border: none; background: var(--green); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-family: 'Archivo', sans-serif; font-size: 0.44rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; box-shadow: 0 2px 8px rgba(19,41,28,0.28); touch-action: manipulation; }
     .nav-play i { font-size: 18px; line-height: 1; }
     .nav-play:active { transform: scale(0.94); opacity: 0.9; }
+    /* Profile switcher — horizontal pills under the topbar, shown only with family */
+    .psw { flex-shrink: 0; display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 9px 14px; background: var(--bg); border-bottom: 0.5px solid var(--border); scrollbar-width: none; }
+    .psw::-webkit-scrollbar { display: none; }
+    body.sv-dark .psw { background: var(--surf); }
+    .psw-pill { flex: 0 0 auto; display: flex; align-items: center; gap: 7px; padding: 5px 13px 5px 5px; border-radius: 999px; border: 1px solid var(--border); background: var(--surf2,transparent); color: var(--muted); font-family: 'Archivo', sans-serif; font-size: 0.78rem; font-weight: 700; cursor: pointer; touch-action: manipulation; white-space: nowrap; transition: all 0.15s; }
+    .psw-pill.on { border-color: var(--green); color: var(--cream); background: rgba(36,150,87,0.12); }
+    .psw-av { width: 24px; height: 24px; border-radius: 50%; background: var(--gold,#c9a84c); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 800; flex-shrink: 0; }
+    .psw-av.kid { background: #3b82f6; }
+    .psw-pill.on .psw-av { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--green); }
 
     /* COMPONENTS */
     .hero { background: var(--ink); border-radius: 16px; padding: 20px; margin-bottom: 14px; border: none; }
@@ -243,6 +252,8 @@
     </div>
   </div>
 
+  <div id="profile-switcher" class="psw" style="display:none;"></div>
+
   <div class="pages">
     <div class="page on" id="pg-home"></div>
     <div class="page" id="pg-caddie"></div>
@@ -298,15 +309,99 @@ const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── STATE ────────────────────────────────────────────────────────
 let profile = null, userId = null, rounds = [], caddieHistory = [];
+let mainProfile = null;      // the beta user's own profile (the guide_users row)
+let family = [];             // derived per-member profiles [{...,_key}]
+let activeKey = 'main';      // which profile is currently active ('main' or a member _key)
 let _authUser = null; // set when magic link auth succeeds
 let _holes = [], _holeIdx = 0, _round = {}, _manYards = null, _caddieOpen = false, _caddieHist = [];
 const DRAFT_KEY = () => 'sv-app-draft-' + (userId||'g');
 
 // ── LABELS ───────────────────────────────────────────────────────
-const GOAL  = { break120:'Break 120', break100:'Break 100', break90:'Break 90', break80:'Break 80', break70:'Break 70', consistency:'More Consistent', beginner:'Learn the Game', fun:'Have Fun', return:'Get Back Out There' };
+const GOAL  = { break120:'Break 120', break100:'Break 100', break90:'Break 90', break80:'Break 80', break70:'Break 70', consistency:'More Consistent', beginner:'Learn the Game', fun:'Have Fun', return:'Get Back Out There', learn:'Learn the Game', compete:'Build Real Skills' };
 const SKILL = { beginner:'Beginner', some:'Some Experience', mid:'Mid-Handicap', low:'Low Handicap', advanced:'Advanced' };
 const HAND  = { l:'Left-handed', r:'Right-handed', left:'Left-handed', right:'Right-handed' };
 const FREQ  = { rare:'2× / month', weekly:'Once a week', multi:'3× a week', daily:'Almost daily' };
+
+// ── FAMILY / MULTI-PROFILE ───────────────────────────────────────
+// Members come from the guide wizard {name, age:int, hand:'right'|'left', goal}.
+// Member goal options (fun|learn|compete|return) differ from the main user's
+// (break100/90/…), so map them onto the app's render keys before use.
+function slug(s){ return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'member'; }
+function mapMemberGoal(g){ return ({ learn:'beginner', compete:'break90' })[g] || g || 'fun'; } // keep fun/return as-is
+function deriveMemberSkill(age, rawGoal){
+  if (rawGoal === 'compete') return (age < 13) ? 'some' : 'mid';
+  if (rawGoal === 'return')  return 'some';
+  return 'beginner'; // learn, fun, and any kid default
+}
+// Parse the wizard's ?fm= param (same format/shape as guide.html parseFM).
+function parseFM(s){
+  if (!s) return [];
+  return s.split('|').map(seg => {
+    const [name,age,hand,goal] = seg.split('~');
+    return { name: decodeURIComponent(name||''), age: parseInt(age)||10, hand: hand||'right', goal: goal||'fun' };
+  }).filter(m => m.name);
+}
+// Turn a raw member {name,age,hand,goal} into a full app profile run through the same engine.
+function memberToProfile(m){
+  const hand = (m.hand==='l' || m.hand==='left') ? 'l' : 'r';
+  const age  = parseInt(m.age) || 10;
+  const rawGoal = m.goal || 'fun';
+  return {
+    name: m.name,
+    hand,
+    skill: deriveMemberSkill(age, rawGoal),
+    goal:  mapMemberGoal(rawGoal),
+    age,
+    isKid: age < 16,
+    coaching_plan: null,
+    distances: {},
+    bag: '',
+    weaknesses: [],
+    freq: 'weekly',
+    _key: slug(m.name),
+    _raw: { name: m.name, age, hand: (hand==='l'?'left':'right'), goal: rawGoal }, // canonical wizard shape, for the editor + persistence
+  };
+}
+// Build mainProfile + family[] from the loaded profile (DB members) or ?fm= fallback.
+function buildFamily(){
+  mainProfile = profile;
+  mainProfile._key = 'main';
+  let mem = Array.isArray(profile.members) ? profile.members.slice() : [];
+  if (!mem.length) {
+    const fmParam = new URLSearchParams(location.search).get('fm');
+    if (fmParam) mem = parseFM(fmParam);
+  }
+  mainProfile.members = mem;            // canonical source-of-truth list of raw members
+  family = mem.map(memberToProfile);
+  activeKey = 'main';
+  profile = mainProfile;
+}
+// Switch the active profile, reload its rounds, and re-render everything.
+async function setActiveProfile(key){
+  activeKey = key;
+  profile = (key === 'main') ? mainProfile : (family.find(f => f._key === key) || mainProfile);
+  caddieHistory = [];
+  rounds = await loadRounds();
+  renderSwitcher();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame();
+  document.getElementById('tb-user').textContent = (profile.name||'').toUpperCase();
+  goPage('home');
+}
+// Topbar profile pills — hidden when the user has no family members.
+function renderSwitcher(){
+  const el = document.getElementById('profile-switcher');
+  if (!el) return;
+  if (!family.length) { el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='flex';
+  const all = [mainProfile, ...family];
+  el.innerHTML = all.map(p => {
+    const key = p._key || 'main';
+    const on  = key === activeKey;
+    const ini = (p.name||'?').trim().charAt(0).toUpperCase();
+    return `<button class="psw-pill${on?' on':''}" onclick="setActiveProfile('${key}')">
+      <span class="psw-av${p.isKid?' kid':''}">${ini}</span>${esc((p.name||'').split(' ')[0])}</button>`;
+  }).join('');
+}
 
 // ── CLUBS (from profile distances or defaults) ───────────────────
 // Normalize guide-builder wizard keys (driver,3w,hybrid,7i,9i,pw,sw) → app bag keys
@@ -421,9 +516,11 @@ function bootApp() {
 }
 
 async function _launchApp() {
+  buildFamily();
   rounds = await loadRounds();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderMyGame();
+  renderSwitcher();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame();
   document.getElementById('tb-user').textContent = profile.name.toUpperCase();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -588,7 +685,8 @@ function openSettings() {
     document.body.appendChild(el);
   }
   el.style.display = 'flex';
-  const p = profile || {};
+  // Top fields always edit the main (beta) user; members are managed in the Family section below.
+  const p = mainProfile || profile || {};
   const handVal = (p.hand==='l'||p.hand==='left') ? 'l' : 'r';
   const dists = normalizeDistances(p.distances);
   const defaults = getClubs();
@@ -622,41 +720,112 @@ function openSettings() {
           <span style="font-size:0.85rem;font-weight:600;color:var(--cream);">${l}</span>
           <input id="set-d-${k}" class="mi" type="text" inputmode="numeric" value="${dists[k]||''}" placeholder="${defaults[k]||''}" style="width:84px;text-align:center;margin-bottom:0;">
         </div>`).join('')}
+
+      <div class="sec-title">Family</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Add the people you golf with. Each gets their own profile and a plan built around their age, hand, and goal — switch between them from the pills up top. Up to 5.</div>
+      <div id="set-family"></div>
+      <button id="set-add-member" class="mi" onclick="addMemberRow()" style="width:100%;background:rgba(36,150,87,0.1);border:1px dashed var(--green);color:var(--green);font-weight:700;cursor:pointer;text-align:center;margin-bottom:0;">+ Add family member</button>
     </div>`;
+  renderFamilyRows();
+}
+
+// ── IN-APP FAMILY EDITOR ─────────────────────────────────────────
+const MEMBER_GOAL_OPTS = [['fun','Fun first'],['learn','Learning basics'],['compete','Wants to compete'],['return','Returning player']];
+function renderFamilyRows(){
+  const wrap = document.getElementById('set-family'); if(!wrap) return;
+  const mem = (mainProfile && Array.isArray(mainProfile.members)) ? mainProfile.members : [];
+  wrap.innerHTML = mem.map((m,i)=>memberRowHtml(m,i)).join('');
+  syncAddMemberBtn();
+}
+function memberRowHtml(m, i){
+  const hand = (m.hand==='l'||m.hand==='left') ? 'left' : 'right';
+  const opt=(v,l,cur)=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`;
+  return `<div class="fam-row" data-i="${i}" style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input class="mi fm-name" type="text" maxlength="20" placeholder="Name" value="${esc(m.name||'')}" style="flex:1;margin-bottom:0;">
+      <input class="mi fm-age" type="number" min="3" max="99" placeholder="Age" value="${m.age||''}" style="width:74px;margin-bottom:0;text-align:center;">
+      <button onclick="removeMemberRow(${i})" title="Remove" style="flex:0 0 auto;width:40px;border:1px solid var(--border);border-radius:8px;background:none;color:rgba(192,57,43,0.7);font-size:1.1rem;cursor:pointer;touch-action:manipulation;">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <select class="mi fm-hand" style="flex:1;margin-bottom:0;">${opt('right','Right-handed',hand)}${opt('left','Left-handed',hand)}</select>
+      <select class="mi fm-goal" style="flex:1;margin-bottom:0;">${MEMBER_GOAL_OPTS.map(([v,l])=>opt(v,l,m.goal||'fun')).join('')}</select>
+    </div>
+  </div>`;
+}
+// Read the editor rows back into a clean member array.
+function collectMemberRows(){
+  return Array.from(document.querySelectorAll('#set-family .fam-row')).map(row=>({
+    name: row.querySelector('.fm-name').value.trim(),
+    age:  parseInt(row.querySelector('.fm-age').value)||0,
+    hand: row.querySelector('.fm-hand').value,
+    goal: row.querySelector('.fm-goal').value,
+  })).filter(m=>m.name);
+}
+function addMemberRow(){
+  // Preserve any edits already made before appending a blank row.
+  const cur = collectMemberRows();
+  if (cur.length >= 5) return;
+  cur.push({ name:'', age:'', hand:'right', goal:'fun' });
+  if (mainProfile) mainProfile.members = cur;
+  renderFamilyRows();
+  const rows = document.querySelectorAll('#set-family .fam-row');
+  rows[rows.length-1]?.querySelector('.fm-name')?.focus();
+}
+function removeMemberRow(i){
+  const cur = collectMemberRows();
+  cur.splice(i,1);
+  if (mainProfile) mainProfile.members = cur;
+  renderFamilyRows();
+}
+function syncAddMemberBtn(){
+  const btn = document.getElementById('set-add-member'); if(!btn) return;
+  const n = document.querySelectorAll('#set-family .fam-row').length;
+  btn.style.display = n >= 5 ? 'none' : 'block';
 }
 function closeSettings() { const el=document.getElementById('settings-overlay'); if(el) el.style.display='none'; }
 
 async function saveSettings() {
-  const name  = document.getElementById('set-name').value.trim() || profile.name;
+  const base  = mainProfile || profile;
+  const name  = document.getElementById('set-name').value.trim() || base.name;
   const hand  = document.getElementById('set-hand').value;
   const skill = document.getElementById('set-skill').value;
   const goal  = document.getElementById('set-goal').value;
   const miss  = document.getElementById('set-miss').value;
-  const distances = normalizeDistances(profile.distances);
+  const distances = normalizeDistances(base.distances);
   SET_CLUBS.forEach(([k])=>{
     const raw = document.getElementById('set-d-'+k).value.trim();
     const v = parseInt(raw);
     if (v && v > 20 && v < 400) distances[k] = v;
     else if (!raw) delete distances[k];
   });
-  // Local first — always works
-  profile = Object.assign({}, profile, { name, hand, skill, goal, distances });
-  try { localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile)); } catch(e) {}
+  // Family members from the editor rows
+  const members = collectMemberRows();
+
+  // Local first — always works. Top fields edit the MAIN user.
+  mainProfile = Object.assign({}, base, { name, hand, skill, goal, distances, members, _key:'main' });
+  family = members.map(memberToProfile);
+  // Keep the active profile pointer valid (active member may have been renamed/removed).
+  if (activeKey === 'main') profile = mainProfile;
+  else { const m = family.find(f=>f._key===activeKey); profile = m || (activeKey='main', mainProfile); }
+
+  try { localStorage.setItem('sv-profile-'+userId, JSON.stringify(mainProfile)); } catch(e) {}
   try { miss ? localStorage.setItem(MISS_KEY(), miss) : localStorage.removeItem(MISS_KEY()); } catch(e) {}
-  // Then Supabase (guide_users row)
+  // Then Supabase (guide_users row) — persist members so they survive across devices.
   let synced = false;
   if (userId && !String(userId).startsWith('preview_')) {
     try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
         method: 'PATCH',
         headers: { ...SB_HDR, Prefer: 'return=minimal' },
-        body: JSON.stringify({ name, hand, skill, goal, distances: Object.keys(distances).length ? distances : null }),
+        body: JSON.stringify({ name, hand, skill, goal, distances: Object.keys(distances).length ? distances : null, members: members.length ? members : null }),
       });
       synced = res.ok;
     } catch(e) {}
   }
   closeSettings();
-  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderMyGame();
+  renderSwitcher();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame();
+  document.getElementById('tb-user').textContent = (profile.name||'').toUpperCase();
   showToast(synced ? 'Saved ✓' : 'Saved on this device');
 }
 
@@ -701,6 +870,34 @@ function dailyThoughtsHtml() {
       <div class="card-body">${t.body}</div>
       <div style="display:inline-block;margin-top:8px;font-size:0.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green);background:rgba(36,150,87,0.1);border-radius:6px;padding:2px 7px;">${t.tag}</div>
     </div>`).join('');
+}
+
+// ── COMING AT LAUNCH (honesty list) ──────────────────────────────
+// Data-driven on purpose: as each feature ships, delete its line here and the
+// app stops advertising it. Never list something that already works in beta.
+// Live today (do NOT list): per-member custom plans + profile switcher,
+// solo round tracking, caddie, handicap index, scorecard scan, share cards.
+const COMING_SOON = [
+  { icon:'ti-users-group', title:'Family rounds', desc:'Play and score a round together, everyone on one card.' },
+  { icon:'ti-device-gamepad-2', title:'Game modes', desc:'Scramble, Parents vs. Kids, Hole Challenge and more.' },
+  { icon:'ti-stars', title:'Kid leveling & badges', desc:'Levels, check-ins and rewards as the kids improve.' },
+  { icon:'ti-cloud', title:'Family stats sync', desc:'Each member’s rounds saved to the cloud across devices.' },
+];
+function comingSoonHtml() {
+  if (!COMING_SOON.length) return '';
+  return `<div class="sec-title">Coming at launch</div>
+    <div class="card">
+      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5;">You’re on the beta. These are built and on the way — they’re not live in the app yet, so here’s the honest list. It shrinks as each one ships.</div>
+      ${COMING_SOON.map(f=>`
+        <div style="display:flex;align-items:flex-start;gap:11px;padding:8px 0;border-top:1px solid rgba(255,255,255,0.05);">
+          <i class="ti ${f.icon}" style="color:var(--muted);font-size:1.15rem;line-height:1.3;flex-shrink:0;"></i>
+          <div style="flex:1;">
+            <div style="font-size:0.86rem;font-weight:700;color:var(--cream);">${f.title}</div>
+            <div style="font-size:0.76rem;color:var(--muted);margin-top:1px;line-height:1.4;">${f.desc}</div>
+          </div>
+          <span style="flex-shrink:0;font-size:0.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 7px;margin-top:2px;">Soon</span>
+        </div>`).join('')}
+    </div>`;
 }
 
 function renderHome() {
@@ -774,6 +971,8 @@ function renderHome() {
 
     <div class="sec-title">Your Bag</div>
     ${renderBag()}
+
+    ${comingSoonHtml()}
   `;
   refreshResumeBanner();
 }
@@ -1722,10 +1921,13 @@ async function saveHandicapFix(id, btn){
 function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); renderMyGame(); renderHome(); showToast('Deleted'); }
 
 // ── DRAFT / STORAGE ──────────────────────────────────────────────
-const RK = ()=>'sv-app-rounds-'+(userId||'g');
+// Each profile gets its own round history. Main user keeps the legacy key;
+// members are suffixed by their _key so switching profiles swaps the data.
+const RK = ()=>'sv-app-rounds-'+(userId||'g')+(activeKey==='main'?'':'-'+activeKey);
 
 async function loadRounds() {
-  if (_authUser) {
+  // Only the main (authed) profile syncs with Supabase; members are local-only.
+  if (_authUser && activeKey==='main') {
     try {
       const { data } = await _sb.from('user_rounds').select('*').order('date_played', { ascending: false }).limit(50);
       return data || [];
@@ -1735,7 +1937,7 @@ async function loadRounds() {
 }
 
 async function persistRound(r) {
-  if (_authUser) {
+  if (_authUser && activeKey==='main') {
     try {
       await _sb.from('user_rounds').upsert({
         ...r, id: r.id || undefined,
