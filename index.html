@@ -923,7 +923,8 @@ const KID_LEVELS = [
 const KID_LEVEL_THRESH = [4,12,25,42,65,95,130,170]; // cumulative pts to REACH levels 1..8
 function kidPointsFromRounds(rds){
   let p=0;
-  (rds||[]).filter(r=>!r.practice).forEach(r=>{
+  (rds||[]).forEach(r=>{
+    if(r.practice){ p+=1; return; }         // practice session
     p+=3;                                   // played a round
     if(r.family) p+=1;                      // played with the family
     if(r.game_mode==='junior_scramble') p+=1;
@@ -950,11 +951,90 @@ const KID_BADGES = [
   { id:'veteran',     name:'Veteran',      icon:'ti-medal',        check:(r)=>r.filter(x=>!x.practice).length>=10 },
   { id:'tour_bound',  name:'Tour Bound',   icon:'ti-trophy',       check:(r,p,l)=>l>=8 },
 ];
+// Bonus points = check-ins + completed challenges + manual adjustments.
+function _kbKey(key){ return 'sv-kidbonus-'+(userId||'g')+'-'+key; }
+function getKidBonus(key){ try{ return parseInt(localStorage.getItem(_kbKey(key)))||0; }catch(e){ return 0; } }
+function addKidBonus(key, n){ try{ localStorage.setItem(_kbKey(key), String(Math.max(0,getKidBonus(key)+n))); }catch(e){} }
+function kidTotalPoints(key, rds){ return kidPointsFromRounds(rds||[]) + getKidBonus(key); }
+
+// PGA-style challenges, one per level, auto-verified from rounds.
+const KID_CHALLENGES = [
+  { lvl:0, id:'first_swing', title:'Get one in the air', desc:'Log your first round or practice session.', pts:3, verify:r=>r.length>=1 },
+  { lvl:1, id:'first_round', title:'Play a full round',  desc:'Finish a 9- or 18-hole round.',           pts:3, verify:r=>r.some(x=>!x.practice&&(x.holes||0)>=9) },
+  { lvl:2, id:'practice3',   title:'Three practice days', desc:'Log 3 practice sessions.',                pts:4, verify:r=>r.filter(x=>x.practice).length>=3 },
+  { lvl:3, id:'first_par',   title:'Make a par',          desc:'Score par or better on any hole.',        pts:5, verify:r=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<=h.par)) },
+  { lvl:4, id:'two_pars',    title:'Two pars in a round', desc:'Make par on 2 holes in one round.',        pts:6, verify:r=>r.some(x=>(x.holeData||[]).filter(h=>h.score!=null&&h.score<=h.par).length>=2) },
+  { lvl:5, id:'a_birdie',    title:'Make a birdie',       desc:'Score under par on a hole.',              pts:8, verify:r=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<h.par)) },
+  { lvl:6, id:'within15',    title:'Within +15 of par',   desc:'Finish an 18 within 15 of par.',          pts:10,verify:r=>r.some(x=>!x.practice&&x.par&&(x.holes||0)>=18&&(x.total-x.par)<=15) },
+  { lvl:7, id:'within10',    title:'Within +10 of par',   desc:'Finish an 18 within 10 of par.',          pts:12,verify:r=>r.some(x=>!x.practice&&x.par&&(x.holes||0)>=18&&(x.total-x.par)<=10) },
+];
+function _kcKey(key){ return 'sv-kidchal-'+(userId||'g')+'-'+key; }
+function getKidChallengesDone(key){ try{ return JSON.parse(localStorage.getItem(_kcKey(key))||'[]'); }catch(e){ return []; } }
+// Award any newly-completed challenges; returns true if something was awarded.
+function kidCheckChallenges(key, rds){
+  const done=getKidChallengesDone(key); let changed=false;
+  KID_CHALLENGES.forEach(c=>{
+    if(!done.includes(c.id) && c.verify(rds||[])){ done.push(c.id); addKidBonus(key, c.pts); changed=true;
+      const nm=(key==='main'?mainProfile:family.find(f=>f._key===key))?.name||'They';
+      showToast(`🏅 ${nm}: ${c.title}! +${c.pts}`);
+    }
+  });
+  if(changed){ try{ localStorage.setItem(_kcKey(key), JSON.stringify(done)); }catch(e){} }
+  return changed;
+}
+// Current challenge = lowest-level not-yet-done.
+function currentKidChallenge(key){ const done=getKidChallengesDone(key); return KID_CHALLENGES.find(c=>!done.includes(c.id))||null; }
+
+// Account-holder check-in — observe + award points (once/day).
+const KID_CHECKIN_Q = [
+  'Did they keep trying after a bad shot?',
+  'Did they follow the rules / take turns nicely?',
+  'Did they hit a shot they were proud of?',
+  'Did they have fun out there?',
+];
+function _ciKey(key){ return 'sv-kidcheckin-'+(userId||'g')+'-'+key; }
+function kidCheckedInToday(key){ try{ return localStorage.getItem(_ciKey(key))===new Date().toISOString().split('T')[0]; }catch(e){ return false; } }
+function openKidCheckin(key){
+  if(kidCheckedInToday(key)){ showToast('Already checked in today — come back tomorrow'); return; }
+  const nm=(key==='main'?mainProfile:family.find(f=>f._key===key))?.name||'your golfer';
+  _sheet(`Check in · ${esc(nm)}`, `
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">Tap the ones that were true today — each one earns ${esc(nm)} points.</div>
+    <div id="ci-qs">${KID_CHECKIN_Q.map((q,i)=>`<button type="button" data-i="${i}" onclick="this.dataset.on=this.dataset.on==='1'?'0':'1';this.style.background=this.dataset.on==='1'?'rgba(36,150,87,0.15)':'var(--surf2)';this.style.borderColor=this.dataset.on==='1'?'var(--green)':'var(--border)';" data-on="0" style="display:block;width:100%;text-align:left;margin-bottom:8px;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--surf2);color:var(--cream);font-size:0.86rem;cursor:pointer;touch-action:manipulation;">${q}</button>`).join('')}</div>
+    <button class="btn-gold" style="width:100%;margin-top:6px;" onclick="submitKidCheckin('${key}',this)">Save check-in ✓</button>`);
+}
+function submitKidCheckin(key, btn){
+  const ov=btn.closest('[style*=fixed]');
+  const yes=Array.from(ov.querySelectorAll('#ci-qs button')).filter(b=>b.dataset.on==='1').length;
+  const pts=yes*2;
+  addKidBonus(key, pts);
+  try{ localStorage.setItem(_ciKey(key), new Date().toISOString().split('T')[0]); }catch(e){}
+  ov.remove();
+  if(activeKey===key||(_keyForProfile(profile)===key)) renderHome();
+  showToast(pts?`Check-in saved · +${pts} points 🌟`:'Check-in saved');
+}
+function _keyForProfile(p){ return p && p._key ? p._key : 'main'; }
+
+// Account-holder manual level/points controls.
+function openKidLevelAdjust(key){
+  const nm=(key==='main'?mainProfile:family.find(f=>f._key===key))?.name||'golfer';
+  _sheet(`Adjust · ${esc(nm)}`, `
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">Nudge points by hand (grown-ups). Levels are earned automatically from points.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      ${[['+3','3'],['+5','5'],['+10','10'],['−3','-3'],['−10','-10']].map(([l,v])=>`<button onclick="adjustKidPoints('${key}',${v},this)" style="flex:1;min-width:64px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surf2);color:var(--cream);font-weight:700;cursor:pointer;touch-action:manipulation;">${l}</button>`).join('')}
+    </div>
+    <button onclick="resetKidPoints('${key}',this)" style="width:100%;padding:11px;border-radius:10px;border:1px solid rgba(192,57,43,0.35);background:none;color:rgba(192,57,43,0.85);font-weight:700;cursor:pointer;touch-action:manipulation;">Reset manual adjustments</button>`);
+}
+function adjustKidPoints(key, n){ addKidBonus(key, n); renderHome(); showToast(`${n>0?'+':''}${n} points`); }
+function resetKidPoints(key, btn){ try{ localStorage.setItem(_kbKey(key),'0'); localStorage.removeItem(_kcKey(key)); }catch(e){} btn.closest('[style*=fixed]')?.remove(); renderHome(); showToast('Manual points reset'); }
+
 function kidLevelHtml(){
   const rds = rounds||[];
-  const pts = kidPointsFromRounds(rds);
+  const key = activeKey;
+  const pts = kidTotalPoints(key, rds);
   const info = kidLevelInfo(pts);
   const lv = KID_LEVELS[info.level];
+  const chal = currentKidChallenge(key);
+  const chalDone = chal && chal.verify(rds);
   const earned = KID_BADGES.filter(b=>b.check(rds,pts,info.level));
   const badgeGrid = KID_BADGES.map(b=>{
     const on=earned.includes(b);
@@ -974,19 +1054,74 @@ function kidLevelHtml(){
         <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.25rem;color:var(--cream);line-height:1.1;">${lv.name}</div>
         <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${info.nextAt!=null?`${info.nextAt-pts} pts to ${KID_LEVELS[info.level+1].name}`:'Max level — tournament ready!'}</div>
       </div>
+      <button onclick="openKidLevelAdjust('${key}')" title="Grown-up controls" style="flex-shrink:0;align-self:flex-start;background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;touch-action:manipulation;"><i class="ti ti-adjustments-horizontal"></i></button>
     </div>
+    ${chal?`<div style="display:flex;align-items:center;gap:11px;margin-top:13px;padding:10px 12px;border-radius:12px;background:${chalDone?lv.color+'18':'var(--surf2)'};border:1px solid ${chalDone?lv.color:'var(--border)'};">
+      <i class="ti ${chalDone?'ti-circle-check-filled':'ti-target-arrow'}" style="font-size:1.3rem;color:${chalDone?lv.color:'var(--muted)'};flex-shrink:0;"></i>
+      <div style="flex:1;min-width:0;"><div style="font-size:0.58rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);">Challenge${chalDone?' — ready!':''}</div><div style="font-size:0.86rem;font-weight:700;color:var(--cream);">${chal.title}</div><div style="font-size:0.72rem;color:var(--muted);">${chal.desc} · +${chal.pts}</div></div>
+    </div>`:''}
     <div style="display:flex;gap:8px;overflow-x:auto;margin-top:14px;padding-bottom:2px;">${badgeGrid}</div>
+    <button onclick="openKidCheckin('${key}')" ${kidCheckedInToday(key)?'disabled':''} style="width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid ${lv.color}55;background:${lv.color}12;color:var(--cream);font-weight:700;font-size:0.85rem;cursor:pointer;opacity:${kidCheckedInToday(key)?0.5:1};touch-action:manipulation;"><i class="ti ti-clipboard-check" style="vertical-align:-2px;margin-right:6px;"></i>${kidCheckedInToday(key)?'Checked in today ✓':'Daily check-in'}</button>
   </div>`;
 }
 // Detect a level-up for a kid after a round saves, and celebrate.
 function checkKidLevelUp(key, rds){
-  const info = kidLevelInfo(kidPointsFromRounds(rds));
+  kidCheckChallenges(key, rds);   // award any newly-completed challenges first
+  const info = kidLevelInfo(kidTotalPoints(key, rds));
   const sk = 'sv-kidlvl-'+(userId||'g')+'-'+key;
   let prev = 0; try{ prev = parseInt(localStorage.getItem(sk))||0; }catch(e){}
   if (info.level>prev){ try{ localStorage.setItem(sk, String(info.level)); }catch(e){}
     const nm = (key==='main'?mainProfile:family.find(f=>f._key===key))?.name || 'They';
     showToast(`🎉 ${nm} reached ${KID_LEVELS[info.level].name}!`);
   } else if (info.level<prev){ try{ localStorage.setItem(sk, String(info.level)); }catch(e){} }
+}
+
+// ── ADULT ACHIEVEMENT BADGES (derived from rounds) ───────────────
+const ADULT_BADGES = [
+  { id:'first_tee',  name:'First Tee', icon:'ti-flag',        check:r=>r.length>=1 },
+  { id:'first_birdie',name:'Birdie!',  icon:'ti-feather',     check:r=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<h.par)) },
+  { id:'par_round',  name:'Par Round', icon:'ti-target',      check:r=>r.some(x=>x.total!=null&&x.par&&(x.holes||18)>=18&&x.total<=x.par) },
+  { id:'five',       name:'5 Rounds',  icon:'ti-number-5-small', check:r=>r.length>=5 },
+  { id:'hat_trick',  name:'Hat Trick', icon:'ti-confetti',    check:r=>r.some(x=>(x.holeData||[]).filter(h=>h.score!=null&&h.score<h.par).length>=3) },
+  { id:'explorer',   name:'Explorer',  icon:'ti-map-2',       check:r=>new Set(r.map(x=>(x.course||'').trim().toLowerCase()).filter(Boolean)).size>=2 },
+  { id:'ten',        name:'10 Rounds', icon:'ti-medal',       check:r=>r.length>=10 },
+];
+function adultBadgesHtml(){
+  const rs=(rounds||[]).filter(r=>!r.practice);
+  const earned=ADULT_BADGES.filter(b=>b.check(rs));
+  if(!earned.length) return ''; // only show once they've earned at least one
+  const grid=ADULT_BADGES.map(b=>{
+    const on=earned.includes(b);
+    return `<div style="flex:0 0 auto;text-align:center;width:60px;opacity:${on?1:0.3};">
+      <div style="width:44px;height:44px;margin:0 auto 4px;border-radius:50%;background:${on?'rgba(201,168,76,0.15)':'var(--surf2)'};border:1.5px solid ${on?'var(--gold)':'var(--border)'};display:flex;align-items:center;justify-content:center;"><i class="ti ${b.icon}" style="font-size:1.15rem;color:${on?'var(--gold)':'var(--muted)'};"></i></div>
+      <div style="font-size:0.56rem;font-weight:700;color:${on?'var(--cream)':'var(--muted)'};line-height:1.1;">${b.name}</div></div>`;
+  }).join('');
+  return `<div class="sec-title">Achievements</div>
+    <div class="card"><div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">${grid}</div></div>`;
+}
+
+// ── MEMORIES GALLERY (hole photos across rounds) ─────────────────
+function _allPhotos(){
+  const out=[];
+  (rounds||[]).forEach(r=>(r.holeData||[]).forEach(h=>{ if(h.photo&&(h.photo.startsWith('http')||h.photo.startsWith('data:'))) out.push({photo:h.photo,course:r.course,date:r.date,hole:h.hole,score:h.score,par:h.par}); }));
+  return out.reverse();
+}
+function memoriesHtml(){
+  const ph=_allPhotos();
+  if(ph.length<2) return ''; // only show once there's a few
+  const cells=ph.slice(0,9).map((p,i)=>`<div onclick="openMemory(${i})" style="position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;"><img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;"></div>`).join('');
+  return `<div class="sec-title">Memories</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;">${cells}</div>`;
+}
+function openMemory(i){
+  const ph=_allPhotos(); const p=ph[i]; if(!p) return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:9700;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:12px;';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML=`<img src="${p.photo}" style="max-width:100%;max-height:78dvh;border-radius:12px;object-fit:contain;">
+    <div style="text-align:center;color:#fff;"><div style="font-weight:700;font-size:0.95rem;">${esc(p.course||'Round')} · Hole ${p.hole}</div><div style="font-size:0.78rem;color:rgba(255,255,255,0.6);margin-top:2px;">${p.date||''} · ${p.score} on a par ${p.par}</div></div>
+    <button onclick="this.closest('[style*=fixed]').remove();" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:10px 24px;color:#fff;font-weight:600;cursor:pointer;">Close</button>`;
+  document.body.appendChild(ov);
 }
 
 function renderHome() {
@@ -1060,6 +1195,10 @@ function renderHome() {
       <i class="ti ti-chevron-right" style="color:var(--muted);margin-left:auto;flex-shrink:0;"></i>
     </div>` : ''}
 
+    ${!p.isKid?adultBadgesHtml():''}
+
+    ${memoriesHtml()}
+
     <div class="sec-title">Your Bag</div>
     ${renderBag()}
 
@@ -1088,11 +1227,27 @@ function renderCaddie() {
       <div class="caddie-msgs" id="caddie-msgs"><div class="msg s">Ask anything — yardage, club, strategy, tips.</div></div>
       <div class="caddie-row">
         <textarea id="caddie-in" rows="2" placeholder="135 yards, slight uphill, light wind…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCaddie();}"></textarea>
+        <button id="caddie-mic" onclick="caddieVoice()" title="Speak" style="background:var(--surf2);border:1px solid var(--border);color:var(--green);"><i class="ti ti-microphone" style="font-size:1.1rem;"></i></button>
         <button onclick="sendCaddie()"><i class="ti ti-send" style="font-size:1.1rem;"></i></button>
       </div>
     </div>
     <input type="hidden" id="caddie-sys" value="${sys.replace(/"/g,'&quot;')}">
   `;
+}
+// Voice input — Web Speech API (Chrome/Safari). Fills the caddie box.
+let _rec = null;
+function caddieVoice(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = document.getElementById('caddie-mic');
+  if (!SR) { showToast('Voice input isn’t supported on this browser','error'); return; }
+  if (_rec) { try{ _rec.stop(); }catch(e){} _rec=null; return; }
+  _rec = new SR(); _rec.lang='en-US'; _rec.interimResults=true; _rec.continuous=false;
+  if(mic){ mic.style.background='var(--green)'; mic.querySelector('i').style.color='#fff'; }
+  const inp=document.getElementById('caddie-in'); const base=inp.value;
+  _rec.onresult=e=>{ let t=''; for(const r of e.results) t+=r[0].transcript; inp.value=(base?base+' ':'')+t; };
+  _rec.onerror=()=>{ showToast('Couldn’t hear that — try again','error'); };
+  _rec.onend=()=>{ _rec=null; if(mic){ mic.style.background='var(--surf2)'; mic.querySelector('i').style.color='var(--green)'; } inp.focus(); };
+  try{ _rec.start(); }catch(e){ _rec=null; }
 }
 async function sendCaddie() {
   const inp=document.getElementById('caddie-in'), el=document.getElementById('caddie-msgs'), sys=document.getElementById('caddie-sys').value, msg=inp.value.trim();
@@ -1228,7 +1383,10 @@ function renderRange() {
   const tip = {break100:'Just make contact and get it airborne — picture sweeping the ball cleanly off the turf. Nothing else matters yet.',break90:'No blow-up holes. One clean shot at a time — bogey is fine, it\'s the 8s and 9s that wreck the card.',break80:'Lag putting and the 100–150 range. That\'s where your shots are quietly leaking away.',break70:'Wedge matrix and proximity. Inside 120 yards you should have an exact number for every swing — no guessing.',consistency:'Same routine, same tempo, every time. You\'re grooving a habit, like a signature you can sign without looking.',beginner:'Fundamentals first: grip, stance, contact. Build the house before you paint it.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'The muscle memory is still in there — wake it up with rhythm and contact, not distance.'}[goal]||'Quality over quantity.';
 
   document.getElementById('pg-range').innerHTML = `
-    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Range & warm-up</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:3px;">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);">Range & warm-up</div>
+      <button onclick="openLogPractice()" style="flex-shrink:0;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:7px 12px;color:var(--green);font-size:0.74rem;font-weight:700;cursor:pointer;touch-action:manipulation;margin-top:4px;"><i class="ti ti-circle-check" style="vertical-align:-2px;margin-right:4px;"></i>Log session</button>
+    </div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${SKILL[skill]||skill} · ${GOAL[goal]||goal}</div>
 
     <div class="card" style="border-color:rgba(201,168,76,0.3);background:rgba(201,168,76,0.05);margin-bottom:14px;">
@@ -1328,6 +1486,15 @@ function refreshResumeBanner() {
   } else { b.style.display='none'; }
 }
 
+// ── WAKE LOCK — keep the screen on during a round ────────────────
+let _wakeLock = null;
+async function _requestWake(){
+  try { if ('wakeLock' in navigator){ _wakeLock = await navigator.wakeLock.request('screen'); _wakeLock.addEventListener?.('release',()=>{ _wakeLock=null; }); } } catch(e){}
+}
+function _releaseWake(){ try { _wakeLock?.release?.(); } catch(e){} _wakeLock=null; }
+// Re-acquire if the tab was backgrounded then refocused mid-round
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && document.getElementById('round-modal')?.classList.contains('on')) _requestWake(); });
+
 function openRound() {
   const draft = loadDraft();
   if (draft?.holes?.length > 0 && draft.holeIdx < draft.holes.length) {
@@ -1336,7 +1503,7 @@ function openRound() {
     if (confirm(`Resume round?\n\n${draft.round.course||'Round'} · Hole ${hp} of ${draft.holes.length}\nScore so far: ${tot}\n\nOK = resume · Cancel = new round`)) {
       _round=draft.round; _holes=draft.holes; _holeIdx=draft.holeIdx;
       _manYards=null; _caddieOpen=false; _caddieHist=[];
-      lockBody();
+      lockBody(); _requestWake();
       document.getElementById('round-modal').classList.add('on');
       document.getElementById('rm-rt').style.display='';
       renderHole(); return;
@@ -1344,7 +1511,7 @@ function openRound() {
   }
   // New round — show setup
   _roundMode = 'solo'; _famMode = 'fun';
-  lockBody();
+  lockBody(); _requestWake();
   document.getElementById('round-modal').classList.add('on');
   document.getElementById('rm-close-btn').style.display='';
   document.getElementById('rm-label').textContent='Round Setup';
@@ -1360,7 +1527,7 @@ function closeRound() {
     saveDraft();
   }
   document.getElementById('round-modal').classList.remove('on');
-  unlockBody(); clearDraft(); refreshResumeBanner(); renderHome();
+  _releaseWake(); unlockBody(); clearDraft(); refreshResumeBanner(); renderHome();
 }
 
 function renderSetup() {
@@ -1854,7 +2021,7 @@ function renderRoundSummary() {
     </div>
     <button class="btn-gold" style="width:100%;margin-bottom:10px;" onclick="saveCompletedRound()">Save Round ✓</button>
     <div style="display:flex;gap:8px;margin-top:0;">
-      <button class="btn-ghost" style="flex:1;" onclick="document.getElementById('round-modal').classList.remove('on');unlockBody();refreshResumeBanner();renderHome();">Done</button>
+      <button class="btn-ghost" style="flex:1;" onclick="document.getElementById('round-modal').classList.remove('on');_releaseWake();unlockBody();refreshResumeBanner();renderHome();">Done</button>
       <button id="share-btn-summary" style="flex:1;background:none;border:1px solid rgba(201,168,76,0.4);border-radius:12px;padding:12px;color:var(--gold-l);font-size:0.88rem;font-weight:600;cursor:pointer;touch-action:manipulation;" onclick="showSharePicker({id:'summary',date:_round.date,course:_round.course,par:_round.par||72,total:_holes.reduce((a,h)=>a+h.score,0),holeData:_holes.map(h=>({hole:h.hole,par:h.par,score:h.score,photo:h.photos?.[0]||null}))})">&#x1F4E4; Share</button>
     </div>
   `;
@@ -1911,7 +2078,7 @@ async function saveCompletedRound() {
   if (profile.isKid) checkKidLevelUp(activeKey, rounds);
   showToast('Round saved ✓');
   document.getElementById('round-modal').classList.remove('on');
-  unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
+  _releaseWake(); unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
 }
 
 // ── FAMILY ROUND (one-card multi-player scoring) ─────────────────
@@ -2204,7 +2371,7 @@ function famAdj(key,d){ const h=_famHoles[_famIdx]; h.scores[key]=Math.max(1,(h.
 function famAdjPar(d){ const h=_famHoles[_famIdx]; h.par=Math.max(3,Math.min(6,h.par+d)); const el=document.getElementById('fam-par'); if(el) el.textContent=h.par; renderFamHole(); }
 function famHoleBack(){ if(_famIdx>0){ _famIdx--; renderFamHole(); } }
 function famNextHole(){ if(_famIdx===_famHoles.length-1) renderFamilySummary(); else { _famIdx++; renderFamHole(); } }
-function closeFamilyRound(){ if(!confirm('Exit this family round? Scores entered so far will be lost.')) return; document.getElementById('round-modal').classList.remove('on'); unlockBody(); renderHome(); }
+function closeFamilyRound(){ if(!confirm('Exit this family round? Scores entered so far will be lost.')) return; document.getElementById('round-modal').classList.remove('on'); _releaseWake(); unlockBody(); renderHome(); }
 function renderFamilySummary(){
   const par=_famHoles.reduce((a,h)=>a+h.par,0);
   const results=_famPlayers.map(pl=>({...pl, total:_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0)})).sort((a,b)=>a.total-b.total);
@@ -2233,7 +2400,7 @@ function renderFamilySummary(){
     ${cards}
     <button class="btn-gold" style="width:100%;margin:8px 0 10px;" onclick="saveFamilyRound(this)">Save round ✓</button>
     <div style="display:flex;gap:8px;">
-      <button class="btn-ghost" style="flex:1;" onclick="document.getElementById('round-modal').classList.remove('on');unlockBody();renderHome();">Done</button>
+      <button class="btn-ghost" style="flex:1;" onclick="document.getElementById('round-modal').classList.remove('on');_releaseWake();unlockBody();renderHome();">Done</button>
       <button style="flex:1;background:none;border:1px solid rgba(201,168,76,0.4);border-radius:12px;padding:12px;color:var(--gold-l);font-size:0.88rem;font-weight:600;cursor:pointer;touch-action:manipulation;" onclick="shareFamilyResults()">&#x1F4E4; Share</button>
     </div>`;
 }
@@ -2360,10 +2527,15 @@ async function saveFamilyRound(btn){
   activeKey=prevActive;
   rounds=await loadRounds();
   showToast('Family round saved ✓');
-  document.getElementById('round-modal').classList.remove('on'); unlockBody();
+  document.getElementById('round-modal').classList.remove('on'); _releaseWake(); unlockBody();
   renderHome(); renderMyGame();
 }
-function shareFamilyResults(){
+async function shareFamilyResults(){
+  try {
+    const blob = await buildFamilyCard();
+    if (blob) { _previewAndShare(blob, `spinvibes-family-${(_famRound.course||'round').replace(/\s+/g,'-').toLowerCase()}.png`); return; }
+  } catch(e){ console.warn('Family card error',e); }
+  // Fallback to text
   const par=_famHoles.reduce((a,h)=>a+h.par,0);
   const results=_famPlayers.map(pl=>({name:pl.name,total:_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0)})).sort((a,b)=>a.total-b.total);
   const lines=results.map((r,i)=>`${i+1}. ${r.name} — ${r.total} (${r.total-par>=0?'+':''}${r.total-par})`).join('\n');
@@ -2492,10 +2664,15 @@ function renderMyGame() {
       <div class="stat"><div class="stat-n">${avg}</div><div class="stat-l">Avg</div></div>
       <div class="stat"><div class="stat-n">${scored.length}</div><div class="stat-l">Rounds</div></div>
     </div>`:''}
-    <button class="btn-gold" style="width:100%;margin-bottom:14px;" onclick="openRound()"><i class="ti ti-flag-2" style="vertical-align:-2px;margin-right:6px;"></i>Start a Round</button>
+    <button class="btn-gold" style="width:100%;margin-bottom:8px;" onclick="openRound()"><i class="ti ti-flag-2" style="vertical-align:-2px;margin-right:6px;"></i>Start a Round</button>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="btn-ghost" style="flex:1;" onclick="openLogPast()"><i class="ti ti-pencil-plus" style="vertical-align:-2px;margin-right:5px;"></i>Log a past round</button>
+      <button class="btn-ghost" style="flex:1;" onclick="openLogPractice()"><i class="ti ti-run" style="vertical-align:-2px;margin-right:5px;"></i>Log practice</button>
+    </div>
     ${handicapCardHtml(rs)}
     ${_dispersionStatsHtml(rs)}
-    ${rs.length?rs.map(r=>roundCard(r)).join(''):`<div class="card"><div class="card-body" style="color:var(--muted);text-align:center;padding:12px 0;">No rounds yet — track your first round above.</div></div>`}
+    ${(()=>{const pr=rs.filter(r=>r.practice).length; return pr?`<div style="font-size:0.76rem;color:var(--muted);margin:0 0 12px;text-align:center;"><i class="ti ti-run" style="vertical-align:-2px;"></i> ${pr} practice session${pr>1?'s':''} logged</div>`:'';})()}
+    ${scored.length?scored.map(r=>roundCard(r)).join(''):`<div class="card"><div class="card-body" style="color:var(--muted);text-align:center;padding:12px 0;">No rounds yet — track your first round above.</div></div>`}
   `;
 }
 
@@ -2541,6 +2718,7 @@ function roundCard(r) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;gap:8px;">
       <button onclick="delRound('${r.id}')" style="background:none;border:none;color:rgba(192,57,43,0.5);font-size:0.72rem;cursor:pointer;touch-action:manipulation;">Delete</button>
       <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="editRound('${r.id}')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--muted);font-size:0.72rem;font-weight:600;cursor:pointer;touch-action:manipulation;">Edit</button>
         ${_hcEligible(r)?`<button onclick="openHandicapFix('${r.id}')" style="background:none;border:1px solid rgba(36,150,87,0.4);border-radius:8px;padding:4px 10px;color:var(--green);font-size:0.72rem;font-weight:600;cursor:pointer;touch-action:manipulation;">+ Handicap data</button>`:''}
         <button id="share-btn-${r.id}" onclick="showSharePicker(${JSON.stringify(r).replace(/"/g,'&quot;')},)" style="background:none;border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:4px 10px;color:var(--gold-l);font-size:0.72rem;font-weight:600;cursor:pointer;touch-action:manipulation;">&#x1F4E4; Share</button>
       </div>
@@ -2583,6 +2761,111 @@ async function saveHandicapFix(id, btn){
   renderMyGame(); showToast('Added to your handicap ✓');
 }
 function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); if(activeKey!=='main') deleteMemberRound(activeKey, id); renderMyGame(); renderHome(); showToast('Deleted'); }
+
+// ── LOG A PAST ROUND (manual, no hole-by-hole) ───────────────────
+function _sheet(title, inner){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const s=document.createElement('div');
+  s.style.cssText='width:100%;max-width:500px;margin:0 auto;background:var(--surf);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:88dvh;overflow-y:auto;';
+  s.innerHTML=`<div style="width:36px;height:4px;background:rgba(0,0,0,0.12);border-radius:2px;margin:0 auto 14px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.2rem;color:var(--cream);">${title}</div>
+      <button onclick="this.closest('[style*=fixed]').remove();" style="background:none;border:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;touch-action:manipulation;">✕</button>
+    </div>${inner}`;
+  ov.appendChild(s);document.body.appendChild(ov);return ov;
+}
+function openLogPast(){
+  const today=new Date().toISOString().split('T')[0];
+  _sheet('Log a past round', `
+    <label class="ml">Course</label><input id="lp-course" class="mi" type="text" placeholder="e.g. Pebble Beach">
+    <label class="ml">Date</label><input id="lp-date" class="mi" type="date" value="${today}">
+    <div style="display:flex;gap:10px;">
+      <div style="flex:1;"><label class="ml">Holes</label><select id="lp-holes" class="mi"><option value="18">18</option><option value="9">9</option></select></div>
+      <div style="flex:1;"><label class="ml">Total score</label><input id="lp-total" class="mi" type="number" inputmode="numeric" placeholder="e.g. 92"></div>
+      <div style="flex:1;"><label class="ml">Par</label><input id="lp-par" class="mi" type="number" inputmode="numeric" placeholder="72"></div>
+    </div>
+    <button class="btn-gold" style="width:100%;margin-top:6px;" onclick="saveLoggedRound(this)">Save round ✓</button>`);
+}
+async function saveLoggedRound(btn){
+  const course=document.getElementById('lp-course').value.trim();
+  const date=document.getElementById('lp-date').value;
+  const holes=parseInt(document.getElementById('lp-holes').value)||18;
+  const total=parseInt(document.getElementById('lp-total').value);
+  const par=parseInt(document.getElementById('lp-par').value)|| (holes===9?36:72);
+  if(!total||total<18||total>200){ showToast('Enter a valid total score','error'); return; }
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  const r={ id:Date.now().toString(), date:date||new Date().toISOString().split('T')[0], course:course||'Logged round',
+    total, par, holes, round_type:holes===9?'nine':'regulation_18', holeData:[], notes:'Logged manually' };
+  await persistRound(r);
+  if(!_authUser) rounds=[...rounds.filter(x=>x.id!==r.id), r];
+  if(activeKey!=='main') await syncMemberRound(activeKey, r);
+  if(profile.isKid) checkKidLevelUp(activeKey, rounds);
+  document.querySelector('#lp-course')?.closest('[style*=fixed]')?.remove();
+  rounds=await loadRounds(); renderMyGame(); renderHome(); showToast('Round logged ✓');
+}
+
+// ── EDIT A SAVED ROUND ───────────────────────────────────────────
+function editRound(id){
+  const r=rounds.find(x=>x.id===id); if(!r) return;
+  const hasHoles=Array.isArray(r.holeData)&&r.holeData.length;
+  let inner=`<label class="ml">Course</label><input id="er-course" class="mi" type="text" value="${esc(r.course||'')}">
+    <label class="ml">Date</label><input id="er-date" class="mi" type="date" value="${r.date||''}">`;
+  if(hasHoles){
+    inner+=`<label class="ml" style="margin-top:6px;">Hole scores</label>
+      <div style="max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;">${r.holeData.map((h,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:3px 0;border-bottom:1px solid var(--border);">
+          <span style="flex:1;font-size:0.82rem;color:var(--muted);">Hole ${h.hole} · par ${h.par}</span>
+          <input type="number" inputmode="numeric" id="er-h-${i}" value="${h.score}" min="1" max="15" style="width:64px;text-align:center;background:var(--surf2);border:1px solid var(--border);border-radius:8px;color:var(--cream);padding:6px;">
+        </div>`).join('')}</div>
+      <div style="text-align:right;font-size:0.8rem;color:var(--cream);font-weight:700;margin-top:8px;">New total: <span id="er-total">${r.total}</span></div>`;
+  } else {
+    inner+=`<label class="ml">Total score</label><input id="er-total-in" class="mi" type="number" inputmode="numeric" value="${r.total||''}">`;
+  }
+  inner+=`<button class="btn-gold" style="width:100%;margin-top:8px;" onclick="saveEditRound('${id}',${hasHoles},this)">Save changes ✓</button>`;
+  const ov=_sheet('Edit round', inner);
+  if(hasHoles){ r.holeData.forEach((h,i)=>{ const el=ov.querySelector('#er-h-'+i); el?.addEventListener('input',()=>{ let t=0; r.holeData.forEach((_,j)=>{ t+=parseInt(ov.querySelector('#er-h-'+j).value)||0; }); ov.querySelector('#er-total').textContent=t; }); }); }
+}
+async function saveEditRound(id, hasHoles, btn){
+  const r=rounds.find(x=>x.id===id); if(!r) return;
+  const ov=btn.closest('[style*=fixed]');
+  r.course=ov.querySelector('#er-course').value.trim()||r.course;
+  r.date=ov.querySelector('#er-date').value||r.date;
+  if(hasHoles){ r.holeData.forEach((h,i)=>{ const v=parseInt(ov.querySelector('#er-h-'+i).value); if(v>0&&v<20) h.score=v; }); r.total=r.holeData.reduce((a,h)=>a+h.score,0); }
+  else { const t=parseInt(ov.querySelector('#er-total-in').value); if(t>0&&t<300) r.total=t; }
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  await persistRound(r); persistRounds();
+  if(activeKey!=='main') await syncMemberRound(activeKey, r);
+  ov.remove(); renderMyGame(); renderHome(); showToast('Round updated ✓');
+}
+
+// ── LOG A PRACTICE SESSION (feeds kid points) ────────────────────
+const PRACTICE_TYPES=[['range','Range / full swing'],['short','Short game · chip & pitch'],['putting','Putting'],['mixed','Mixed practice']];
+function openLogPractice(){
+  const today=new Date().toISOString().split('T')[0];
+  _sheet('Log a practice session', `
+    <label class="ml">What did you work on?</label>
+    <select id="lpr-type" class="mi">${PRACTICE_TYPES.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select>
+    <label class="ml">Date</label><input id="lpr-date" class="mi" type="date" value="${today}">
+    <label class="ml">Minutes (optional)</label><input id="lpr-min" class="mi" type="number" inputmode="numeric" placeholder="e.g. 45">
+    <button class="btn-gold" style="width:100%;margin-top:6px;" onclick="savePractice(this)">Log session ✓</button>`);
+}
+async function savePractice(btn){
+  const type=document.getElementById('lpr-type').value;
+  const date=document.getElementById('lpr-date').value;
+  const mins=parseInt(document.getElementById('lpr-min').value)||null;
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  const label=(PRACTICE_TYPES.find(t=>t[0]===type)||[])[1]||'Practice';
+  const r={ id:Date.now().toString(), date:date||new Date().toISOString().split('T')[0], course:label, practice:true, ptype:type,
+    total:0, par:0, holes:0, holeData:[], notes:'Practice'+(mins?` · ${mins} min`:'') };
+  // Practice is local per-profile + member cloud sync
+  try{ const k=RK(); const arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(r); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
+  if(activeKey!=='main') await syncMemberRound(activeKey, r);
+  if(profile.isKid) checkKidLevelUp(activeKey, await loadRounds());
+  document.querySelector('#lpr-type')?.closest('[style*=fixed]')?.remove();
+  rounds=await loadRounds(); renderHome(); renderMyGame(); showToast('Practice logged ✓ +1');
+}
 
 // ── DRAFT / STORAGE ──────────────────────────────────────────────
 // Each profile gets its own round history. Main user keeps the legacy key;
@@ -2986,23 +3269,65 @@ async function doShare(template, roundData, holeNum) {
       if(h) blob=await buildHoleCard(h,roundData);
     }
     if(!blob) return;
-    const objUrl=URL.createObjectURL(blob);
-    const overlay=document.createElement('div');
-    overlay.style.cssText='position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;';
-    overlay.innerHTML=`<img src="${objUrl}" style="max-width:100%;max-height:70dvh;border-radius:10px;object-fit:contain;">
-      <div style="display:flex;gap:10px;width:100%;max-width:360px;">
-        <button onclick="this.closest('[style*=fixed]').remove();URL.revokeObjectURL('${objUrl}')" style="flex:1;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px;color:#fff;font-family:Archivo,sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;touch-action:manipulation;">Cancel</button>
-        <button id="sv-share-ok" style="flex:2;background:var(--green);border:none;border-radius:12px;padding:14px;color:#e8f5ec;font-family:Archivo,sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;touch-action:manipulation;">Share →</button>
-      </div>`;
-    document.body.appendChild(overlay);
-    document.getElementById('sv-share-ok').onclick=async()=>{
-      overlay.remove();
-      const fname=`spinvibes-${(roundData.course||'round').replace(/\s+/g,'-').toLowerCase()}.png`;
-      try{const f=new File([blob],fname,{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'SpinVibes Golf'});URL.revokeObjectURL(objUrl);return;}}catch(e){}
-      const a=document.createElement('a');a.href=objUrl;a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(objUrl),5000);
-    };
+    _previewAndShare(blob, `spinvibes-${(roundData.course||'round').replace(/\s+/g,'-').toLowerCase()}.png`);
   } catch(e){console.warn('Share error:',e);}
   finally{if(btn){btn.disabled=false;btn.textContent='&#x1F4E4; Share';}}
+}
+
+// Shared preview + native-share/download overlay (used by solo + family cards)
+function _previewAndShare(blob, fname){
+  const objUrl=URL.createObjectURL(blob);
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:14px;';
+  overlay.innerHTML=`<img src="${objUrl}" style="max-width:100%;max-height:70dvh;border-radius:10px;object-fit:contain;">
+    <div style="display:flex;gap:10px;width:100%;max-width:360px;">
+      <button onclick="this.closest('[style*=fixed]').remove();URL.revokeObjectURL('${objUrl}')" style="flex:1;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px;color:#fff;font-family:Archivo,sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;touch-action:manipulation;">Cancel</button>
+      <button id="sv-share-ok" style="flex:2;background:var(--green);border:none;border-radius:12px;padding:14px;color:#e8f5ec;font-family:Archivo,sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;touch-action:manipulation;">Share →</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('sv-share-ok').onclick=async()=>{
+    overlay.remove();
+    try{const f=new File([blob],fname,{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'SpinVibes Golf'});URL.revokeObjectURL(objUrl);return;}}catch(e){}
+    const a=document.createElement('a');a.href=objUrl;a.download=fname;a.click();setTimeout(()=>URL.revokeObjectURL(objUrl),5000);
+  };
+}
+
+// Family round recap card — ranked players + mode result line
+async function buildFamilyCard(){
+  const W=720,H=1280,sf=0.76;const canvas=_mkCanvas(W,H);const ctx=canvas.getContext('2d');
+  const par=_famHoles.reduce((a,h)=>a+h.par,0);
+  const results=_famPlayers.map(pl=>({...pl,total:_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0)})).sort((a,b)=>a.total-b.total);
+  const modeLabel=(FAM_MODES.find(m=>m.key===_famMode)||{}).title||'Family Round';
+  ctx.fillStyle='#13291C';ctx.fillRect(0,0,W,H);
+  // header
+  ctx.textAlign='center';
+  ctx.fillStyle='#5fcf8e';ctx.font=`700 ${Math.round(20*sf)}px Archivo,Arial`;ctx.fillText('FAMILY ROUND',W/2,Math.round(90*sf));
+  ctx.fillStyle='#f3f7f3';ctx.font=`800 ${Math.round(40*sf)}px Archivo,Arial`;ctx.fillText((_famRound.course||'Family Round').toUpperCase().slice(0,22),W/2,Math.round(135*sf));
+  ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=`400 ${Math.round(16*sf)}px Archivo,Arial`;ctx.fillText(`${_famRound.date||''} · ${_famHoles.length} holes · ${modeLabel}`,W/2,Math.round(162*sf));
+  // result line
+  let resultLine='';
+  if(_famMode==='parents_vs_kids'&&_famModeData){let k=0,a=0;_famHoles.forEach(h=>{const ka=_famModeData.kids.map(x=>{const s=h.scores[x];return s!=null?Math.max(1,s-(_famModeData.kidHandicaps[x]||2)):null;}).filter(s=>s!=null);const ar=_famModeData.adults.map(x=>h.scores[x]).filter(s=>s>0);if(ka.length&&ar.length){const kb=Math.min(...ka),ab=Math.min(...ar);if(kb<ab)k++;else if(ab<kb)a++;}});resultLine=k>a?'Kids win!':a>k?'Parents win!':'All square!';}
+  else { const lead=results[0]?.total; const winners=results.filter(r=>r.total===lead).map(r=>r.name); resultLine=winners.length===1?`${winners[0]} takes it!`:'Tie!'; }
+  // player rows
+  let y=Math.round(230*sf);const rowH=Math.round(96*sf),pad=Math.round(48*sf);
+  results.forEach((r,i)=>{
+    const vs=r.total-par,vsStr=vs===0?'E':vs>0?'+'+vs:String(vs);
+    ctx.fillStyle='rgba(255,255,255,0.05)';_rr(ctx,pad,y,W-pad*2,rowH-Math.round(14*sf),14);ctx.fill();
+    if(i===0){ctx.strokeStyle='#c9a84c';ctx.lineWidth=2;_rr(ctx,pad,y,W-pad*2,rowH-Math.round(14*sf),14);ctx.stroke();}
+    const cy=y+(rowH-Math.round(14*sf))/2;
+    ctx.fillStyle=r.color;ctx.beginPath();ctx.arc(pad+Math.round(36*sf),cy,Math.round(24*sf),0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.font=`800 ${Math.round(24*sf)}px Archivo,Arial`;ctx.textAlign='center';ctx.fillText((r.name||'?')[0].toUpperCase(),pad+Math.round(36*sf),cy+Math.round(9*sf));
+    ctx.textAlign='left';ctx.fillStyle='#f3f7f3';ctx.font=`700 ${Math.round(26*sf)}px Archivo,Arial`;ctx.fillText(r.name.slice(0,14),pad+Math.round(74*sf),cy+Math.round(2*sf));
+    if(i===0){ctx.fillStyle='#c9a84c';ctx.font=`700 ${Math.round(13*sf)}px Archivo,Arial`;ctx.fillText('LOW ROUND',pad+Math.round(74*sf),cy+Math.round(24*sf));}
+    ctx.textAlign='right';ctx.fillStyle='#f3f7f3';ctx.font=`800 ${Math.round(38*sf)}px Archivo,Arial`;ctx.fillText(String(r.total),W-pad-Math.round(60*sf),cy+Math.round(10*sf));
+    ctx.fillStyle=vs<0?'#60a5fa':vs===0?'#6ec98a':'rgba(255,255,255,0.5)';ctx.font=`600 ${Math.round(18*sf)}px Archivo,Arial`;ctx.fillText(vsStr,W-pad-Math.round(8*sf),cy+Math.round(10*sf));
+    y+=rowH;
+  });
+  // result banner
+  y+=Math.round(20*sf);
+  ctx.textAlign='center';ctx.fillStyle='#249657';_rr(ctx,pad,y,W-pad*2,Math.round(70*sf),14);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font=`800 ${Math.round(30*sf)}px Archivo,Arial`;ctx.fillText(resultLine,W/2,y+Math.round(46*sf));
+  await _cardChrome(ctx,W,H,sf);return _toBlob(canvas);
 }
 
 // ── UTILS ────────────────────────────────────────────────────────
