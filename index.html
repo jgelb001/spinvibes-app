@@ -887,7 +887,8 @@ function dailyThoughtsHtml() {
 // Live today (do NOT list): per-member custom plans + profile switcher,
 // solo round tracking, caddie, handicap index, scorecard scan, share cards.
 const COMING_SOON = [
-  { icon:'ti-cloud', title:'Family stats sync', desc:'Each member’s rounds saved to the cloud so they follow you across devices.' },
+  // Empty = everything promised is live. Add a line here only for features that
+  // are genuinely not yet working in beta; the card hides itself when empty.
 ];
 function comingSoonHtml() {
   if (!COMING_SOON.length) return '';
