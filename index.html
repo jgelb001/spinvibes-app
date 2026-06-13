@@ -887,7 +887,7 @@ function dailyThoughtsHtml() {
 // Live today (do NOT list): per-member custom plans + profile switcher,
 // solo round tracking, caddie, handicap index, scorecard scan, share cards.
 const COMING_SOON = [
-  { icon:'ti-device-gamepad-2', title:'Game modes', desc:'Scramble, Parents vs. Kids, Hole Challenge and more — layered onto family rounds.' },
+  { icon:'ti-device-gamepad-2', title:'More game modes', desc:'Team Scramble, Hole Challenge, Kid Birdie Bomb and Team Captain — Junior Scramble and Parents vs. Kids are live now.' },
   { icon:'ti-stars', title:'Kid leveling & badges', desc:'Levels, check-ins and rewards as the kids improve.' },
   { icon:'ti-cloud', title:'Family stats sync', desc:'Each member’s rounds saved to the cloud across devices.' },
 ];
@@ -1168,7 +1168,7 @@ function openRound() {
     } else { clearDraft(); }
   }
   // New round — show setup
-  _roundMode = 'solo';
+  _roundMode = 'solo'; _famMode = 'fun';
   lockBody();
   document.getElementById('round-modal').classList.add('on');
   document.getElementById('rm-close-btn').style.display='';
@@ -1200,6 +1200,8 @@ function renderSetup() {
     <div id="rs-players-wrap" style="display:${_roundMode==='family'?'block':'none'};margin-bottom:16px;">
       <label class="ml">Who's playing?</label>
       <div id="rs-players" style="display:flex;flex-direction:column;gap:7px;">${familyPickerHtml()}</div>
+      <label class="ml" style="margin-top:14px;">Game</label>
+      <div id="rs-mode" style="display:flex;flex-direction:column;gap:7px;">${famModePickerHtml()}</div>
     </div>
     <label class="ml">Date</label>
     <input type="date" id="rs-date" class="mi" value="${today}">
@@ -1736,6 +1738,28 @@ async function saveCompletedRound() {
 
 // ── FAMILY ROUND (one-card multi-player scoring) ─────────────────
 let _famSel = {};
+let _famMode = 'fun';          // 'fun' | 'junior_scramble' | 'parents_vs_kids'
+let _famModeData = null;
+const FAM_MODES = [
+  { key:'fun',             title:'Just for fun',     desc:'Everyone plays their own ball. Lowest total wins.' },
+  { key:'junior_scramble', title:'Junior Scramble',  desc:'Play as one team, best ball each hole. Each kid gets a “bomb drive” per nine.' },
+  { key:'parents_vs_kids', title:'Parents vs. Kids', desc:'Kids vs. grown-ups — kids get stroke help. Win the most holes.' },
+];
+// Per-hole stroke help for a kid in Parents vs Kids (no levels yet → age-based)
+function kidHcp(pl){ const a=pl.age||10; if(!pl.isKid) return 0; if(a<8) return 3; if(a<13) return 2; return 1; }
+function famModePickerHtml(){
+  return FAM_MODES.map(m=>{
+    const on=_famMode===m.key;
+    return `<button type="button" onclick="setFamMode('${m.key}')" style="text-align:left;padding:10px 13px;border-radius:12px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'rgba(36,150,87,0.1)':'var(--surf2)'};cursor:pointer;touch-action:manipulation;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <span style="flex-shrink:0;width:18px;height:18px;border-radius:50%;border:2px solid ${on?'var(--green)':'var(--border)'};background:${on?'var(--green)':'transparent'};"></span>
+        <span style="font-weight:700;font-size:0.9rem;color:var(--cream);">${m.title}</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;margin-left:27px;line-height:1.4;">${m.desc}</div>
+    </button>`;
+  }).join('');
+}
+function setFamMode(m){ _famMode=m; const el=document.getElementById('rs-mode'); if(el) el.innerHTML=famModePickerHtml(); }
 function familyPickerHtml(){
   const profs = allProfiles();
   // default: everyone selected
@@ -1773,13 +1797,23 @@ function startFamilyRound(quick){
   const cData = window._setupCourse;
   if (!cData && !quick) { showToast('Search and select a course first — or use quick round','error'); return; }
   const profs = allProfiles();
-  _famPlayers = profs.filter(p=>_famSel[p._key||'main']!==false).map((p,i)=>({ key:p._key||'main', name:p.name, isKid:!!p.isKid, color:famPlayerColor(p,i) }));
+  _famPlayers = profs.filter(p=>_famSel[p._key||'main']!==false).map((p,i)=>({ key:p._key||'main', name:p.name, isKid:!!p.isKid, age:p.age, color:famPlayerColor(p,i) }));
   if (!_famPlayers.length) { showToast('Pick at least one player','error'); return; }
+  // Game mode setup + validation
+  const kids = _famPlayers.filter(p=>p.isKid), adults = _famPlayers.filter(p=>!p.isKid);
+  if (_famMode==='parents_vs_kids' && (!kids.length || !adults.length)) { showToast('Parents vs. Kids needs at least one kid and one grown-up','error'); return; }
+  if (_famMode==='junior_scramble' && _famPlayers.length<2) { showToast('Junior Scramble needs at least two players','error'); return; }
+  if (_famMode==='parents_vs_kids') {
+    const kidHandicaps={}; kids.forEach(k=>kidHandicaps[k.key]=kidHcp(k));
+    _famModeData={ kids:kids.map(k=>k.key), adults:adults.map(a=>a.key), kidHandicaps };
+  } else if (_famMode==='junior_scramble') {
+    _famModeData={ kids:kids.map(k=>k.key), bombsUsed:{}, rescuedHoles:{} };
+  } else { _famModeData=null; }
   const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
   const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
   const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
   const courseName = cData ? cData.name+(cData.course?' — '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Family Round'));
-  _famRound = { date, course: courseName, par:(par3?numH*3:(tee?.par||holePars.reduce((a,b)=>a+b,0))), tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null };
+  _famRound = { date, course: courseName, par:(par3?numH*3:(tee?.par||holePars.reduce((a,b)=>a+b,0))), tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null, game_mode:_famMode };
   _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc }; });
   _famIdx = 0;
   document.getElementById('rm-rt').style.display='none';
@@ -1816,6 +1850,7 @@ function renderFamHole(){
         <button onclick="famAdjPar(1)" style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;">+</button>
       </div>
     </div>
+    ${famModeBanner(h)}
     ${rows}`;
   const footer=document.getElementById('rm-footer'); footer.style.display='';
   footer.innerHTML=`
@@ -1824,6 +1859,62 @@ function renderFamHole(){
       <button onclick="famNextHole()" class="btn-gold" style="flex:1;padding:0;height:50px;border-radius:10px;font-size:0.9rem;touch-action:manipulation;">${isLast?'Finish round →':'Next hole →'}</button>
     </div>
     <button onclick="closeFamilyRound()" style="width:100%;background:none;border:1px solid rgba(192,57,43,0.35);border-radius:10px;padding:9px;color:rgba(192,57,43,0.8);font-size:0.76rem;font-weight:700;cursor:pointer;touch-action:manipulation;">EXIT FAMILY ROUND</button>`;
+}
+// Per-hole game-mode banner (scramble best ball / parents-vs-kids adjusted / bombs)
+function famModeBanner(h){
+  if (_famMode==='junior_scramble' && _famModeData){
+    const scores=_famPlayers.map(pl=>h.scores[pl.key]).filter(s=>s>0);
+    const best=scores.length?Math.min(...scores):null;
+    const rescuer=_famModeData.rescuedHoles[h.hole];
+    const isFront=h.hole<=9;
+    const kidBtns=_famModeData.kids.map(k=>{
+      const pl=_famPlayers.find(p=>p.key===k); if(!pl) return '';
+      const used=(_famModeData.bombsUsed[k]||[]).some(u=>u.front===isFront);
+      const isRescuer=rescuer===k;
+      return `<button onclick="famBomb('${k}')" ${used&&!isRescuer?'disabled':''} style="font-size:0.72rem;font-weight:700;color:${isRescuer?'#fff':pl.color};padding:6px 11px;background:${isRescuer?pl.color:pl.color+'18'};border:1.5px solid ${pl.color}66;border-radius:18px;cursor:${used&&!isRescuer?'default':'pointer'};opacity:${used&&!isRescuer?0.4:1};touch-action:manipulation;">${isRescuer?'🚀 '+pl.name+' (undo)':'🚀 '+pl.name}</button>`;
+    }).join('');
+    return `<div style="background:rgba(36,150,87,0.07);border:1px solid rgba(36,150,87,0.3);border-radius:12px;padding:11px 13px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;">Scramble — best ball</div>
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.4rem;color:var(--green);">${best!=null?best:'—'}</div>
+      </div>
+      ${_famModeData.kids.length?`<div style="font-size:0.68rem;color:var(--muted);margin:7px 0 6px;">${isFront?'Front':'Back'}-9 bomb drive — tap a kid who smashed one:</div><div style="display:flex;gap:7px;flex-wrap:wrap;">${kidBtns}</div>`:''}
+    </div>`;
+  }
+  if (_famMode==='parents_vs_kids' && _famModeData){
+    const gm=_famModeData;
+    const kidsAdj=gm.kids.map(k=>{const s=h.scores[k];return s!=null?Math.max(1,s-(gm.kidHandicaps[k]||2)):null;}).filter(s=>s!=null);
+    const adultRaw=gm.adults.map(a=>h.scores[a]).filter(s=>s>0);
+    const kidsBest=kidsAdj.length?Math.min(...kidsAdj):null, adultBest=adultRaw.length?Math.min(...adultRaw):null;
+    const kidNames=gm.kids.map(k=>_famPlayers.find(p=>p.key===k)?.name).join(' & ');
+    const adultNames=gm.adults.map(a=>_famPlayers.find(p=>p.key===a)?.name).join(' & ');
+    const kidSub=gm.kids.map(k=>`${_famPlayers.find(p=>p.key===k)?.name} −${gm.kidHandicaps[k]}`).join(', ');
+    const box=(label,color,score,sub)=>`<div style="flex:1;background:${color}14;border:1px solid ${color}55;border-radius:11px;padding:9px 11px;">
+      <div style="font-size:0.64rem;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:${color};margin-bottom:2px;">${label}</div>
+      <div style="font-size:0.66rem;color:var(--muted);margin-bottom:3px;">${sub}</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.4rem;color:var(--cream);">${score!=null?score:'—'}</div></div>`;
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;">Parents vs. Kids — adjusted best ball</div>
+      <div style="display:flex;gap:8px;">${box(adultNames,'#1D9E75',adultBest,'raw')}${box(kidNames,'#7F77DD',kidsBest,kidSub)}</div>
+    </div>`;
+  }
+  return '';
+}
+function famBomb(k){
+  const gm=_famModeData; if(!gm) return;
+  const h=_famHoles[_famIdx], isFront=h.hole<=9;
+  if (gm.rescuedHoles[h.hole]===k){ // undo
+    delete gm.rescuedHoles[h.hole];
+    gm.bombsUsed[k]=(gm.bombsUsed[k]||[]).filter(u=>u.hole!==h.hole);
+    renderFamHole(); return;
+  }
+  const used=gm.bombsUsed[k]||(gm.bombsUsed[k]=[]);
+  if (used.some(u=>u.front===isFront)){ showToast(`${_famPlayers.find(p=>p.key===k)?.name} already used their ${isFront?'front':'back'}-9 bomb`,'error'); return; }
+  if (gm.rescuedHoles[h.hole]){ showToast('One bomb drive per hole','error'); return; }
+  used.push({hole:h.hole,front:isFront});
+  gm.rescuedHoles[h.hole]=k;
+  renderFamHole();
+  showToast(`🚀 ${_famPlayers.find(p=>p.key===k)?.name}'s bomb drive is in play!`);
 }
 function famAdj(key,d){ const h=_famHoles[_famIdx]; h.scores[key]=Math.max(1,(h.scores[key]||0)+d); const el=document.getElementById('fam-sc-'+key); if(el) el.textContent=h.scores[key]; renderFamHole(); }
 function famAdjPar(d){ const h=_famHoles[_famIdx]; h.par=Math.max(3,Math.min(6,h.par+d)); const el=document.getElementById('fam-par'); if(el) el.textContent=h.par; renderFamHole(); }
@@ -1848,17 +1939,56 @@ function renderFamilySummary(){
       <div style="text-align:right;"><div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.8rem;color:var(--cream);line-height:1;">${r.total}</div><div style="font-size:0.74rem;font-weight:700;color:${vs<0?'#60a5fa':vs===0?'#6ec98a':'var(--muted)'};">${vsStr}</div></div>
     </div>`;
   }).join('');
+  const modeLabel = (FAM_MODES.find(m=>m.key===_famMode)||{}).title || 'Family Round';
   document.getElementById('rm-body').innerHTML=`
     <div style="text-align:center;margin-bottom:18px;">
       <div style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">${esc(_famRound.course||'Family Round')}</div>
-      <div style="font-size:0.72rem;color:var(--muted);">${_famRound.date||''} · ${_famHoles.length} holes · ${results.length} players</div>
+      <div style="font-size:0.72rem;color:var(--muted);">${_famRound.date||''} · ${_famHoles.length} holes · ${modeLabel}</div>
     </div>
+    ${famRecapHeaderHtml(par)}
     ${cards}
     <button class="btn-gold" style="width:100%;margin:8px 0 10px;" onclick="saveFamilyRound(this)">Save round ✓</button>
     <div style="display:flex;gap:8px;">
       <button class="btn-ghost" style="flex:1;" onclick="document.getElementById('round-modal').classList.remove('on');unlockBody();renderHome();">Done</button>
       <button style="flex:1;background:none;border:1px solid rgba(201,168,76,0.4);border-radius:12px;padding:12px;color:var(--gold-l);font-size:0.88rem;font-weight:600;cursor:pointer;touch-action:manipulation;" onclick="shareFamilyResults()">&#x1F4E4; Share</button>
     </div>`;
+}
+// Mode-specific recap block shown above the per-player cards
+function famRecapHeaderHtml(par){
+  if (_famMode==='junior_scramble' && _famModeData){
+    let team=0; _famHoles.forEach(h=>{ const s=_famPlayers.map(pl=>h.scores[pl.key]).filter(x=>x>0); if(s.length) team+=Math.min(...s); });
+    const vs=team-par, vsStr=vs===0?'E':vs>0?'+'+vs:String(vs);
+    const bombs=[]; Object.entries(_famModeData.rescuedHoles).forEach(([hole,k])=>bombs.push(`${_famPlayers.find(p=>p.key===k)?.name} · hole ${hole}`));
+    return `<div style="background:rgba(36,150,87,0.08);border:1px solid rgba(36,150,87,0.35);border-radius:14px;padding:14px;margin-bottom:14px;text-align:center;">
+      <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green);margin-bottom:4px;">Team best ball</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2.6rem;line-height:1;color:var(--cream);">${team}</div>
+      <div style="font-size:0.8rem;font-weight:700;color:${vs<0?'#60a5fa':vs===0?'#6ec98a':'var(--muted)'};">${vsStr} · par ${par}</div>
+      ${bombs.length?`<div style="font-size:0.72rem;color:var(--muted);margin-top:8px;">🚀 Bomb drives: ${bombs.join(' · ')}</div>`:''}
+    </div>
+    <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Everyone's round</div>`;
+  }
+  if (_famMode==='parents_vs_kids' && _famModeData){
+    const gm=_famModeData; let kidH=0, adultH=0, tie=0;
+    _famHoles.forEach(h=>{
+      const ka=gm.kids.map(k=>{const s=h.scores[k];return s!=null?Math.max(1,s-(gm.kidHandicaps[k]||2)):null;}).filter(s=>s!=null);
+      const ar=gm.adults.map(a=>h.scores[a]).filter(s=>s>0);
+      if(!ka.length||!ar.length) return;
+      const kb=Math.min(...ka), ab=Math.min(...ar);
+      if(kb<ab) kidH++; else if(ab<kb) adultH++; else tie++;
+    });
+    const kidsWin=kidH>adultH, even=kidH===adultH;
+    return `<div style="background:rgba(127,119,221,0.08);border:1px solid rgba(127,119,221,0.35);border-radius:14px;padding:14px;margin-bottom:14px;text-align:center;">
+      <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#7F77DD;margin-bottom:6px;">Holes won</div>
+      <div style="display:flex;justify-content:center;align-items:center;gap:16px;">
+        <div><div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2.2rem;color:#1D9E75;line-height:1;">${adultH}</div><div style="font-size:0.68rem;color:var(--muted);">Parents</div></div>
+        <div style="font-size:1rem;color:var(--muted);">vs</div>
+        <div><div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2.2rem;color:#7F77DD;line-height:1;">${kidH}</div><div style="font-size:0.68rem;color:var(--muted);">Kids</div></div>
+      </div>
+      <div style="font-size:0.9rem;font-weight:800;color:var(--cream);margin-top:8px;">${even?'All square!':(kidsWin?'Kids win! 🎉':'Parents win!')}${tie?` <span style="font-size:0.66rem;color:var(--muted);font-weight:600;">(${tie} halved)</span>`:''}</div>
+    </div>
+    <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Everyone's round</div>`;
+  }
+  return '';
 }
 async function saveFamilyRound(btn){
   if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
@@ -1869,9 +1999,9 @@ async function saveFamilyRound(btn){
     const total=_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0);
     const rec={ id:base+'-'+pl.key, date:_famRound.date||new Date().toISOString().split('T')[0], course:_famRound.course||'',
       total, par, holes:_famHoles.length, tee:_famRound.tee||null,
-      round_type:_famRound.round_type||'regulation_18', rating:_famRound.rating||null, slope:_famRound.slope||null, family:true,
+      round_type:_famRound.round_type||'regulation_18', rating:_famRound.rating||null, slope:_famRound.slope||null, family:true, game_mode:_famRound.game_mode||'fun',
       holeData:_famHoles.map(h=>({hole:h.hole,par:h.par,score:h.scores[pl.key]||0,yds:h.yds})),
-      notes:'Family round · '+_famPlayers.map(x=>x.name).join(', ') };
+      notes:'Family round'+(_famMode!=='fun'?' ('+((FAM_MODES.find(m=>m.key===_famMode)||{}).title||'')+')':'')+' · '+_famPlayers.map(x=>x.name).join(', ') };
     // Save locally under each player's per-profile round key
     activeKey=pl.key;
     try{ const k=RK(); const arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(rec); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
