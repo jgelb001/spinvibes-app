@@ -1,4 +1,4 @@
-const CACHE = 'spinvibes-app-v4';
+const CACHE = 'spinvibes-app-v5';
 const SHELL = ['/', '/index.html', '/confirm.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
