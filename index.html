@@ -92,6 +92,9 @@
     .pill.g { background: rgba(36,150,87,0.25); border-color: rgba(36,150,87,0.45); color: #7BD4A0; }
 
     .sec-title { font-size: 0.65rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+    .back-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--surf2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 13px 6px 10px; color: var(--muted); font-family: 'Archivo', sans-serif; font-size: 0.74rem; font-weight: 700; cursor: pointer; margin-bottom: 12px; touch-action: manipulation; }
+    .back-chip i { font-size: 1rem; line-height: 1; }
+    .back-chip:active { opacity: 0.7; }
     .card { background: var(--surf); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
     .card-title { font-weight: 700; font-size: 0.88rem; color: var(--cream); margin-bottom: 4px; }
     .card-body  { font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
@@ -109,8 +112,10 @@
     .qc-sub   { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
 
     /* CADDIE */
-    .caddie-outer { display: flex; flex-direction: column; height: calc(100dvh - 110px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); }
-    .caddie-msgs { flex: 1; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding-bottom: 10px; }
+    /* Caddie fills the page area (between topbar and nav) so the input row is always visible above the nav */
+    #pg-caddie.on { display: flex; flex-direction: column; padding-bottom: calc(10px + env(safe-area-inset-bottom,0px)); }
+    .caddie-outer { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+    .caddie-msgs { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding-bottom: 10px; }
     .msg { padding: 10px 14px; border-radius: 12px; font-size: 0.87rem; line-height: 1.55; max-width: 88%; }
     .msg.u { background: var(--green); color: #e8f5ec; align-self: flex-end; border-radius: 12px 12px 2px 12px; }
     .msg.c { background: var(--surf2); color: var(--cream); align-self: flex-start; border-radius: 12px 12px 12px 2px; border: 1px solid var(--border); }
@@ -188,6 +193,19 @@
     #auth-modal input[type=email] { width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--cream);font-size:1rem;font-family:inherit;margin:16px 0 12px;box-sizing:border-box; }
     #auth-modal input[type=email]::placeholder { color:var(--muted); }
     #auth-modal input[type=email]:focus { outline:none;border-color:rgba(201,168,76,0.5); }
+    /* Rendered markdown (Coach's Plan) */
+    .md { font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
+    .md > *:first-child { margin-top: 0; }
+    .md > *:last-child { margin-bottom: 0; }
+    .md .md-h { font-family: 'Archivo', sans-serif; font-weight: 700; color: var(--cream); letter-spacing: -0.2px; line-height: 1.3; }
+    .md .md-h1 { font-size: 1.0rem; margin: 14px 0 6px; }
+    .md .md-h2 { font-size: 0.92rem; margin: 14px 0 5px; }
+    .md .md-h3, .md .md-h4 { font-size: 0.85rem; margin: 12px 0 4px; color: var(--gold-l, var(--cream)); }
+    .md .md-p { margin: 0 0 9px; }
+    .md .md-ul, .md .md-ol { margin: 0 0 9px; padding-left: 1.15rem; }
+    .md .md-ul li, .md .md-ol li { margin-bottom: 4px; }
+    .md strong { color: var(--cream); font-weight: 700; }
+    .md em { font-style: italic; }
   </style>
 </head>
 <body>
@@ -688,7 +706,7 @@ function renderHome() {
       <div class="qc" onclick="goPage('shortgame')"><div class="qc-icon"><i class="ti ti-target"></i></div><div class="qc-title">Short Game</div><div class="qc-sub">Chips &amp; putts</div></div>
     </div>
 
-    ${p.coaching_plan?`<div class="sec-title">Your Coaching Plan</div><div class="card"><div class="card-body">${p.coaching_plan.replace(/\n/g,'<br>')}</div></div>`:''}
+    ${p.coaching_plan?`<div class="sec-title">Your Coaching Plan</div><div class="card"><div class="card-body md">${mdToHtml(p.coaching_plan)}</div></div>`:''}
 
     ${(!userId?.startsWith('preview_') && !_authUser && rounds.length >= 1) ? `
     <div class="card" onclick="showAuthModal()" style="cursor:pointer;border:1px solid rgba(201,168,76,0.25);display:flex;align-items:center;gap:14px;">
@@ -843,6 +861,7 @@ function renderStrategy() {
   };
 
   document.getElementById('pg-strategy').innerHTML = `
+    <button class="back-chip" onclick="goPage('mygame')"><i class="ti ti-arrow-left"></i> My game</button>
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Strategy</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${GOAL[goal]||goal} · Course Management</div>
 
@@ -929,6 +948,25 @@ function renderSetup() {
     </div>
     <div id="rs-status" style="font-size:0.73rem;color:var(--muted);margin-bottom:6px;"></div>
     <div id="rs-results" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+
+    <!-- OR scan a scorecard -->
+    <div id="rs-scan-wrap" style="margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;margin:2px 0 12px;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <div style="font-size:0.62rem;color:var(--muted);letter-spacing:1px;">OR SCAN A SCORECARD</div>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      <label class="ml">Tee row to read</label>
+      <div id="rs-scan-tees" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        ${['White','Gold','Blue','Sage','Red'].map((c,i)=>`<button type="button" onclick="selectScanTee(this,'${c}')" style="background:${i===0?'var(--green)':'var(--surf2)'};border:${i===0?'none':'1px solid var(--border)'};border-radius:8px;padding:5px 12px;color:${i===0?'#fff':'var(--muted)'};font-size:0.75rem;font-weight:700;cursor:pointer;touch-action:manipulation;">${c}</button>`).join('')}
+      </div>
+      <input type="file" id="rs-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="scanPhotoSelected(this)">
+      <button type="button" onclick="document.getElementById('rs-photo-input').click()" style="width:100%;background:var(--surf2);border:1px dashed rgba(36,150,87,0.4);border-radius:12px;padding:16px;color:var(--muted);font-size:0.85rem;cursor:pointer;touch-action:manipulation;"><i class="ti ti-camera" style="vertical-align:-2px;margin-right:6px;"></i>Take photo or upload scorecard</button>
+      <div id="rs-photo-preview" style="display:none;margin-top:10px;"><img id="rs-preview-img" style="width:100%;border-radius:10px;border:1px solid var(--border);"></div>
+      <button id="rs-parse-btn" type="button" onclick="parseScorecard()" style="display:none;width:100%;margin-top:10px;" class="btn-gold">Read scorecard with AI →</button>
+      <div id="rs-parse-status" style="text-align:center;font-size:0.78rem;color:var(--muted);margin-top:8px;"></div>
+    </div>
+
     <div id="rs-course-selected" style="display:none;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.35);border-radius:10px;padding:11px 14px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div><div id="rs-cname" style="font-weight:700;font-size:0.9rem;color:var(--cream);"></div><div id="rs-csub" style="font-size:0.7rem;color:var(--muted);margin-top:2px;"></div></div>
@@ -951,6 +989,51 @@ function renderSetup() {
   window._setupHoles = 18;
   window._setupPar3 = false;
   window._setupCourse = null;
+  window._scanTee = 'White';
+}
+
+// ── SCORECARD OCR (scan → pre-fill round) ────────────────────────────
+function selectScanTee(btn, color){
+  window._scanTee = color;
+  document.querySelectorAll('#rs-scan-tees button').forEach(b=>{const on=b===btn;b.style.background=on?'var(--green)':'var(--surf2)';b.style.color=on?'#fff':'var(--muted)';b.style.border=on?'none':'1px solid var(--border)';});
+}
+function scanPhotoSelected(input){
+  const f=input.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=e=>{document.getElementById('rs-preview-img').src=e.target.result;document.getElementById('rs-photo-preview').style.display='block';document.getElementById('rs-parse-btn').style.display='block';document.getElementById('rs-parse-status').textContent='';};
+  rd.readAsDataURL(f);
+}
+function _fileToDataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file);});}
+function _resizeImg(dataUrl,max){return new Promise(res=>{const img=new Image();img.onload=()=>{let w=img.width,h=img.height;if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',0.85));};img.onerror=()=>res(dataUrl);img.src=dataUrl;});}
+async function parseScorecard(){
+  const input=document.getElementById('rs-photo-input'); const f=input?.files?.[0]; if(!f) return;
+  const teeColor=window._scanTee||'White';
+  const st=document.getElementById('rs-parse-status'), btn=document.getElementById('rs-parse-btn');
+  btn.disabled=true; btn.textContent='Reading scorecard…'; st.textContent='';
+  try{
+    const resized=await _resizeImg(await _fileToDataUrl(f),1400);
+    const base64=resized.split(',')[1];
+    const r=await fetch(CADDIE_URL+'/parse-scorecard',{method:'POST',headers:{'Content-Type':'application/json','X-SpinVibes-Token':WORKER_SECRET},body:JSON.stringify({image:base64,mediaType:'image/jpeg',teeColor})});
+    const d=await r.json();
+    if(!r.ok||d.error||!d.course){st.textContent=d.error||'Parse failed — try a clearer, well-lit photo';btn.disabled=false;btn.textContent='Read scorecard with AI →';return;}
+    const c=d.course;
+    const numH=c.holes||(c.holePars&&c.holePars.length)||18;
+    const holePars=(c.holePars&&c.holePars.length)?c.holePars.map(p=>p||4):Array(numH).fill(4);
+    const yardages=(c.yardages&&c.yardages.length)?c.yardages:Array(numH).fill(null);
+    const par=c.par||holePars.reduce((a,b)=>a+(b||0),0);
+    const name=c.name||'Scanned course';
+    const loc=[c.city,c.state].filter(Boolean).join(', ');
+    window._setupCourse={id:null,name,loc,course:null,data:{allTees:[{name:teeColor,rating:c.rating||null,slope:c.slope||null,par,holePars,yardages,yards:yardages.reduce((a,b)=>a+(b||0),0)||null}]}};
+    window._setupTee=teeColor;
+    setHoles(numH===9?9:18,false);
+    const sd=document.getElementById('rs-course-selected');
+    if(sd){sd.style.display='';document.getElementById('rs-cname').textContent=name;document.getElementById('rs-csub').textContent=(loc?loc+' · ':'')+'Scanned · '+numH+' holes · par '+par;}
+    const tw=document.getElementById('rs-tee-wrap'), tr=document.getElementById('rs-tees');
+    if(tw&&tr){tw.style.display='';tr.innerHTML=`<button type="button" style="background:var(--green);border:none;border-radius:8px;padding:5px 12px;color:#fff;font-size:0.75rem;font-weight:700;">${teeColor}${par?` <span style='opacity:0.7;font-weight:400;'>par ${par}</span>`:''}</button>`;}
+    st.innerHTML='<span style="color:var(--green);font-weight:600;">Scorecard read ✓ — pick your format and tap Start Round.</span>';
+    btn.style.display='none'; document.getElementById('rs-photo-preview').style.display='none';
+  }catch(e){st.textContent='Network error — check your signal';console.error(e);}
+  finally{btn.disabled=false;btn.textContent='Read scorecard with AI →';}
 }
 function setHoles(n, par3) {
   window._setupHoles = n;
@@ -1028,7 +1111,7 @@ function startRound(quick) {
   const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
   const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
   const courseName = cData ? cData.name+(cData.course?' — '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Quick Round'));
-  _round = { date, course: courseName, par: (par3 ? numH*3 : (tee?.par||holePars.reduce((a,b)=>a+b,0))), tee: tee?.name||null, round_type: par3?'par3':(numH===9?'nine':'regulation_18') };
+  _round = { date, course: courseName, par: (par3 ? numH*3 : (tee?.par||holePars.reduce((a,b)=>a+b,0))), tee: tee?.name||null, round_type: par3?'par3':(numH===9?'nine':'regulation_18'), rating: tee?.rating||null, slope: tee?.slope||null };
   _holes = Array.from({length:numH},(_,i)=>({ hole:i+1, par:holePars[i]||4, score:holePars[i]||4, yds:yardages[i]||null, photos:[], putts:null, fairway:null, approachYds:null, approachClub:null, missDir:null, missDepth:null }));
   _holeIdx=0; _manYards=null; _caddieOpen=false; _caddieHist=[];
   document.getElementById('rm-rt').style.display='';
@@ -1333,6 +1416,7 @@ async function saveCompletedRound() {
     id: roundId,
     date: _round.date || new Date().toISOString().split('T')[0],
     course: _round.course||'', total, par, holes: _holes.length, tee: _round.tee||null,
+    round_type: _round.round_type||(_holes.length===9?'nine':'regulation_18'), rating: _round.rating||null, slope: _round.slope||null,
     holeData: _holes.map(h=>({hole:h.hole, par:h.par, score:h.score, yds:h.yds, approachYds:h.approachYds, approachClub:h.approachClub||null, missDir:h.missDir||null, missDepth:h.missDepth||null, photo:h.photos?.[0]||null})),
     notes: document.getElementById('rs-notes')?.value.trim()||'',
   };
@@ -1371,6 +1455,7 @@ function renderShortGame() {
   </div>`;
 
   document.getElementById('pg-shortgame').innerHTML = `
+    <button class="back-chip" onclick="goPage('range')"><i class="ti ti-arrow-left"></i> Range</button>
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Short game</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">Chipping · Putting · Around the Green</div>
 
@@ -1394,6 +1479,61 @@ function renderShortGame() {
   `;
 }
 
+// ── HANDICAP INDEX (WHS estimate) ────────────────────────────────────
+function _scoreDiff(score, rating, slope){ return Math.round(((score - rating) * 113 / slope) * 10) / 10; }
+function _whsBestCount(n){ if(n<=5)return 1; if(n<=7)return 2; if(n<=9)return 3; if(n<=11)return 4; if(n<=13)return 5; if(n<=16)return 6; if(n<=18)return 7; return 8; }
+function calcHandicapIndex(allRounds){
+  const eligible = allRounds
+    .filter(r=>!r.practice && (r.round_type||'regulation_18')==='regulation_18' && r.rating && r.slope && r.total)
+    .map(r=>({date:r.date||'', score:r.total, rating:r.rating, slope:r.slope, diff:_scoreDiff(r.total,r.rating,r.slope), course:r.course}))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(!eligible.length) return null;
+  const last20 = eligible.slice(-20);
+  const count = _whsBestCount(last20.length);
+  const best = [...last20].sort((a,b)=>a.diff-b.diff).slice(0,count);
+  const avg = best.reduce((s,d)=>s+d.diff,0)/best.length;
+  const index = Math.round(avg*0.96*10)/10;
+  return { index, differentials:last20, eligibleCount:eligible.length, usedCount:count };
+}
+function handicapCardHtml(allRounds){
+  const hc = calcHandicapIndex(allRounds);
+  if(!hc){
+    const hasReg = allRounds.some(r=>!r.practice && (r.round_type||'regulation_18')==='regulation_18');
+    if(!hasReg) return '';
+    return `<div class="card" style="margin-bottom:14px;"><div class="card-title">Handicap index</div><div class="card-body">Play a regulation 18 at a rated course (search and pick a course + tee) to start building your WHS index.</div></div>`;
+  }
+  const recent = hc.differentials.slice(-8);
+  const diffs = recent.map(d=>d.diff);
+  const dMin=Math.min(...diffs), dMax=Math.max(...diffs), dRange=(dMax-dMin)||1;
+  const bars = recent.map((d,i)=>{
+    const pct = 100 - Math.round(((d.diff-dMin)/dRange)*70);
+    const isLast = i===recent.length-1;
+    const col = isLast ? 'var(--green)' : (d.diff < hc.index ? 'rgba(110,201,138,0.6)' : 'var(--surf3,#cdd6cf)');
+    return `<div title="${d.diff}" style="flex:1;height:${Math.max(15,pct)}%;background:${col};border-radius:3px 3px 0 0;"></div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:10px;">
+      <div>
+        <div style="font-size:0.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Handicap index</div>
+        <div style="display:flex;align-items:baseline;gap:6px;">
+          <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2.6rem;color:var(--cream);line-height:1;">${hc.index.toFixed(1)}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">est. WHS</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:0.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Rounds used</div>
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.4rem;color:var(--cream);line-height:1;">${hc.usedCount}<span style="font-size:0.8rem;color:var(--muted);"> of </span>${hc.eligibleCount}</div>
+        <div style="font-size:0.58rem;color:var(--muted);">best differentials</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:3px;height:30px;">${bars}</div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px;">
+      <div style="font-size:0.55rem;color:var(--muted);">${(recent[0]?.date||'').slice(5)}</div>
+      <div style="font-size:0.55rem;color:var(--green);font-weight:600;">recent → lower is better</div>
+    </div>
+  </div>`;
+}
+
 // ── MY GAME ──────────────────────────────────────────────────────────
 function renderMyGame() {
   const rs=[...rounds].reverse(), scored=rs.filter(r=>!r.practice);
@@ -1407,6 +1547,7 @@ function renderMyGame() {
       <div class="stat"><div class="stat-n">${scored.length}</div><div class="stat-l">Rounds</div></div>
     </div>`:''}
     <button class="btn-gold" style="width:100%;margin-bottom:14px;" onclick="openRound()"><i class="ti ti-flag-2" style="vertical-align:-2px;margin-right:6px;"></i>Start a Round</button>
+    ${handicapCardHtml(rs)}
     ${_dispersionStatsHtml(rs)}
     ${rs.length?rs.map(r=>roundCard(r)).join(''):`<div class="card"><div class="card-body" style="color:var(--muted);text-align:center;padding:12px 0;">No rounds yet — track your first round above.</div></div>`}
   `;
@@ -1746,7 +1887,10 @@ function showSharePicker(roundData) {
   const holes=(roundData.holeData||[]).filter(h=>h.photo&&(h.photo.startsWith('http')||h.photo.startsWith('data:')));
   sheet.innerHTML=`
     <div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 14px;"></div>
-    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.2rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">Share Round</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:2px;font-size:1.2rem;color:var(--cream);">Share Round</div>
+      <button onclick="this.closest('[style*=fixed]').remove();" style="background:none;border:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;touch-action:manipulation;">✕</button>
+    </div>
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button onclick="doShare('scorecard',${JSON.stringify(roundData).replace(/"/g,'&quot;')});this.closest('[style*=fixed]').remove();" style="background:var(--surf2);border:1px solid rgba(201,168,76,0.2);border-radius:14px;padding:16px;text-align:left;cursor:pointer;color:var(--cream);touch-action:manipulation;">
         <div style="font-weight:700;font-size:0.95rem;margin-bottom:3px;">&#x1F4CA; Full Scorecard</div>
@@ -1765,7 +1909,10 @@ function showHolePicker(roundData){
   const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,0.7);display:flex;align-items:flex-end;';overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
   const sheet=document.createElement('div');sheet.style.cssText='width:100%;background:var(--surf);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:80dvh;overflow-y:auto;';
   sheet.innerHTML=`<div style="width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 14px;"></div>
-    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.1rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">Pick a Hole</div>`+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:2px;font-size:1.1rem;color:var(--cream);">Pick a Hole</div>
+      <button onclick="this.closest('[style*=fixed]').remove();" style="background:none;border:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;touch-action:manipulation;">✕</button>
+    </div>`+
     holes.map(h=>`<div onclick="doShare('hole',${JSON.stringify(roundData).replace(/"/g,'&quot;')},${h.hole});this.closest('[style*=fixed]').remove();" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;touch-action:manipulation;">
       <img src="${h.photo}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0;">
       <div style="flex:1;"><div style="font-weight:700;font-size:0.88rem;color:var(--cream);">Hole ${h.hole} · Par ${h.par}</div><div style="font-size:0.75rem;color:var(--muted);margin-top:2px;">${h.score} strokes (${h.score-h.par===0?'Par':h.score-h.par>0?'+':''}${h.score-h.par===0?'':h.score-h.par})</div></div>
@@ -1806,6 +1953,29 @@ async function doShare(template, roundData, holeNum) {
 
 // ── UTILS ────────────────────────────────────────────────────────
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Lightweight markdown → HTML (headings, bold/italic, bullet + numbered lists, paragraphs)
+function mdToHtml(md){
+  if(!md) return '';
+  const e=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const inline=t=>e(t)
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/__([^_]+)__/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*(?!\s)([^*]+?)\*/g,'$1<em>$2</em>');
+  const lines=String(md).replace(/\r\n/g,'\n').split('\n');
+  let html='',list=null;
+  const close=()=>{ if(list){ html+='</'+list+'>'; list=null; } };
+  for(const raw of lines){
+    const line=raw.trim();
+    if(!line){ close(); continue; }
+    let m;
+    if((m=line.match(/^(#{1,4})\s+(.*)$/))){ close(); html+='<div class="md-h md-h'+m[1].length+'">'+inline(m[2].replace(/[#\s]+$/,''))+'</div>'; continue; }
+    if((m=line.match(/^[-*•]\s+(.*)$/))){ if(list!=='ul'){close();html+='<ul class="md-ul">';list='ul';} html+='<li>'+inline(m[1])+'</li>'; continue; }
+    if((m=line.match(/^\d+[.)]\s+(.*)$/))){ if(list!=='ol'){close();html+='<ol class="md-ol">';list='ol';} html+='<li>'+inline(m[1])+'</li>'; continue; }
+    close(); html+='<p class="md-p">'+inline(line)+'</p>';
+  }
+  close();
+  return html;
+}
 function showToast(msg,type) {
   const t=document.getElementById('toast'); t.textContent=msg;
   t.style.background=type==='error'?'rgba(192,57,43,0.9)':'var(--surf2)';
