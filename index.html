@@ -1814,6 +1814,8 @@ async function saveCompletedRound() {
   };
   await persistRound(r);
   if (!_authUser) rounds = [...rounds.filter(x=>x.id!==r.id), r];
+  // Member (non-main) solo rounds sync to the cloud via family_rounds
+  if (activeKey!=='main') await syncMemberRound(activeKey, r);
   if (profile.isKid) checkKidLevelUp(activeKey, rounds);
   showToast('Round saved ✓');
   document.getElementById('round-modal').classList.remove('on');
@@ -2259,8 +2261,9 @@ async function saveFamilyRound(btn){
     try{ const k=RK(); arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(rec); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
     // Kid leveling — celebrate any level-up from this round
     if(pl.isKid) checkKidLevelUp(pl.key, arr);
-    // Main user also syncs to Supabase when signed in
-    if(pl.key==='main' && _authUser){ try{ await _sb.from('user_rounds').upsert({ ...rec, user_id:_authUser.id, guide_user_id:userId||null, date_played:rec.date }); }catch(e){} }
+    // Cloud sync: main → user_rounds (if signed in); members → family_rounds (by guide link)
+    if(pl.key==='main'){ if(_authUser){ try{ await _sb.from('user_rounds').upsert({ ...rec, user_id:_authUser.id, guide_user_id:userId||null, date_played:rec.date }); }catch(e){} } }
+    else { await syncMemberRound(pl.key, rec); }
   }
   activeKey=prevActive;
   rounds=await loadRounds();
@@ -2487,20 +2490,54 @@ async function saveHandicapFix(id, btn){
   document.querySelector('#hc-rating')?.closest('[style*=fixed]')?.remove();
   renderMyGame(); showToast('Added to your handicap ✓');
 }
-function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); renderMyGame(); renderHome(); showToast('Deleted'); }
+function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); if(activeKey!=='main') deleteMemberRound(activeKey, id); renderMyGame(); renderHome(); showToast('Deleted'); }
 
 // ── DRAFT / STORAGE ──────────────────────────────────────────────
 // Each profile gets its own round history. Main user keeps the legacy key;
 // members are suffixed by their _key so switching profiles swaps the data.
 const RK = ()=>'sv-app-rounds-'+(userId||'g')+(activeKey==='main'?'':'-'+activeKey);
 
+// Family stats sync — members have no login, so their rounds sync to the
+// `family_rounds` table keyed by the guide link (guide_user_id) + member key.
+// Uses the anon key (same as guide_users), so it works in guest mode and across
+// any device opening the same ?u= link. No-ops gracefully if the table is absent.
+function _syncEligible(){ return userId && !String(userId).startsWith('preview_'); }
+async function syncMemberRound(memberKey, rec){
+  if (!_syncEligible()) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/family_rounds`, {
+      method:'POST',
+      headers:{ ...SB_HDR, Prefer:'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ id:rec.id, guide_user_id:userId, member_key:memberKey, round:rec, date_played:rec.date||new Date().toISOString().split('T')[0] }),
+    });
+  } catch(e) {}
+}
+async function deleteMemberRound(memberKey, id){
+  if (!_syncEligible()) return;
+  try { await fetch(`${SUPABASE_URL}/rest/v1/family_rounds?id=eq.${encodeURIComponent(id)}&member_key=eq.${encodeURIComponent(memberKey)}`, { method:'DELETE', headers:{ ...SB_HDR, Prefer:'return=minimal' } }); } catch(e) {}
+}
+
 async function loadRounds() {
-  // Only the main (authed) profile syncs with Supabase; members are local-only.
+  // Main profile: Supabase user_rounds when signed in.
   if (_authUser && activeKey==='main') {
     try {
       const { data } = await _sb.from('user_rounds').select('*').order('date_played', { ascending: false }).limit(50);
       return data || [];
     } catch(e) {}
+  }
+  // Member profile: pull from family_rounds (cloud) keyed by guide link + member key.
+  if (activeKey!=='main' && _syncEligible()) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/family_rounds?guide_user_id=eq.${userId}&member_key=eq.${encodeURIComponent(activeKey)}&select=round&order=date_played.asc`, { headers: SB_HDR });
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          const cloud = rows.map(r=>r.round).filter(Boolean);
+          try { localStorage.setItem(RK(), JSON.stringify(cloud)); } catch(e) {} // cache for offline
+          return cloud;
+        }
+      }
+    } catch(e) {} // table missing / offline → fall through to local
   }
   try { return JSON.parse(localStorage.getItem(RK()) || '[]'); } catch(e) { return []; }
 }
