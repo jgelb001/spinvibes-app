@@ -314,6 +314,15 @@ let family = [];             // derived per-member profiles [{...,_key}]
 let activeKey = 'main';      // which profile is currently active ('main' or a member _key)
 let _authUser = null; // set when magic link auth succeeds
 let _holes = [], _holeIdx = 0, _round = {}, _manYards = null, _caddieOpen = false, _caddieHist = [];
+// Family round (one-card multi-player scoring)
+let _roundMode = 'solo';          // 'solo' | 'family'
+let _famPlayers = [];             // [{key,name,isKid,color}] selected for the round
+let _famHoles = [];               // [{hole,par,yds,scores:{key:int}}]
+let _famIdx = 0, _famRound = {};
+// Player colors — main user gold, kids blue, others rotate
+const FAM_COLORS = ['#7F77DD','#1D9E75','#D4537E','#E08D3C'];
+function famPlayerColor(p, i){ if((p._key||'main')==='main') return '#c9a84c'; if(p.isKid) return '#3b82f6'; return FAM_COLORS[i % FAM_COLORS.length]; }
+function allProfiles(){ return [mainProfile||profile, ...family]; }
 const DRAFT_KEY = () => 'sv-app-draft-' + (userId||'g');
 
 // ── LABELS ───────────────────────────────────────────────────────
@@ -878,8 +887,7 @@ function dailyThoughtsHtml() {
 // Live today (do NOT list): per-member custom plans + profile switcher,
 // solo round tracking, caddie, handicap index, scorecard scan, share cards.
 const COMING_SOON = [
-  { icon:'ti-users-group', title:'Family rounds', desc:'Play and score a round together, everyone on one card.' },
-  { icon:'ti-device-gamepad-2', title:'Game modes', desc:'Scramble, Parents vs. Kids, Hole Challenge and more.' },
+  { icon:'ti-device-gamepad-2', title:'Game modes', desc:'Scramble, Parents vs. Kids, Hole Challenge and more — layered onto family rounds.' },
   { icon:'ti-stars', title:'Kid leveling & badges', desc:'Levels, check-ins and rewards as the kids improve.' },
   { icon:'ti-cloud', title:'Family stats sync', desc:'Each member’s rounds saved to the cloud across devices.' },
 ];
@@ -1160,6 +1168,7 @@ function openRound() {
     } else { clearDraft(); }
   }
   // New round — show setup
+  _roundMode = 'solo';
   lockBody();
   document.getElementById('round-modal').classList.add('on');
   document.getElementById('rm-close-btn').style.display='';
@@ -1181,7 +1190,17 @@ function closeRound() {
 
 function renderSetup() {
   const today = new Date().toISOString().split('T')[0];
+  const hasFam = family.length > 0;
   document.getElementById('rm-body').innerHTML = `
+    ${hasFam ? `
+    <div style="display:flex;gap:6px;background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:16px;">
+      <button id="rmode-solo" onclick="setRoundMode('solo')" style="flex:1;border:none;border-radius:9px;padding:9px;font-family:'Archivo',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;touch-action:manipulation;background:${_roundMode==='solo'?'var(--green)':'transparent'};color:${_roundMode==='solo'?'#fff':'var(--muted)'};">Just me</button>
+      <button id="rmode-family" onclick="setRoundMode('family')" style="flex:1;border:none;border-radius:9px;padding:9px;font-family:'Archivo',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;touch-action:manipulation;background:${_roundMode==='family'?'var(--green)':'transparent'};color:${_roundMode==='family'?'#fff':'var(--muted)'};">Whole family</button>
+    </div>` : ''}
+    <div id="rs-players-wrap" style="display:${_roundMode==='family'?'block':'none'};margin-bottom:16px;">
+      <label class="ml">Who's playing?</label>
+      <div id="rs-players" style="display:flex;flex-direction:column;gap:7px;">${familyPickerHtml()}</div>
+    </div>
     <label class="ml">Date</label>
     <input type="date" id="rs-date" class="mi" value="${today}">
     <label class="ml">Course</label>
@@ -1229,8 +1248,14 @@ function renderSetup() {
       <button id="rs-9"  onclick="setHoles(9,false)"  style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">9 holes</button>
       <button id="rs-p3" onclick="setHoles(9,true)"   style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">Par-3</button>
     </div>
-    <button class="btn-gold" style="width:100%;" onclick="startRound()">Start Round →</button>
-    <button onclick="startRound(true)" style="width:100%;background:none;border:none;margin-top:10px;color:var(--muted);font-size:0.78rem;text-decoration:underline;cursor:pointer;touch-action:manipulation;">Start without a course — quick round</button>
+    <div id="rs-start-solo" style="display:${_roundMode==='family'?'none':'block'};">
+      <button class="btn-gold" style="width:100%;" onclick="startRound()">Start Round →</button>
+      <button onclick="startRound(true)" style="width:100%;background:none;border:none;margin-top:10px;color:var(--muted);font-size:0.78rem;text-decoration:underline;cursor:pointer;touch-action:manipulation;">Start without a course — quick round</button>
+    </div>
+    <div id="rs-start-family" style="display:${_roundMode==='family'?'block':'none'};">
+      <button class="btn-gold" style="width:100%;" onclick="startFamilyRound()">Start Family Round →</button>
+      <button onclick="startFamilyRound(true)" style="width:100%;background:none;border:none;margin-top:10px;color:var(--muted);font-size:0.78rem;text-decoration:underline;cursor:pointer;touch-action:manipulation;">Start without a course — quick round</button>
+    </div>
   `;
   window._setupHoles = 18;
   window._setupPar3 = false;
@@ -1707,6 +1732,166 @@ async function saveCompletedRound() {
   showToast('Round saved ✓');
   document.getElementById('round-modal').classList.remove('on');
   unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
+}
+
+// ── FAMILY ROUND (one-card multi-player scoring) ─────────────────
+let _famSel = {};
+function familyPickerHtml(){
+  const profs = allProfiles();
+  // default: everyone selected
+  if (!Object.keys(_famSel).length) profs.forEach(p=>{ _famSel[p._key||'main']=true; });
+  return profs.map((p,i)=>{
+    const k=p._key||'main', on=_famSel[k]!==false, color=famPlayerColor(p,i), ini=(p.name||'?').trim().charAt(0).toUpperCase();
+    return `<button type="button" onclick="toggleFamPlayer('${k}')" style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:12px;border:1px solid ${on?'var(--green)':'var(--border)'};background:${on?'rgba(36,150,87,0.1)':'var(--surf2)'};cursor:pointer;touch-action:manipulation;text-align:left;">
+      <span style="width:30px;height:30px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;flex-shrink:0;">${ini}</span>
+      <span style="flex:1;font-weight:700;font-size:0.9rem;color:var(--cream);">${esc(p.name||'')}${p.isKid?` <span style="font-size:0.62rem;color:#3b82f6;font-weight:700;">KID</span>`:''}</span>
+      <span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;border:2px solid ${on?'var(--green)':'var(--border)'};background:${on?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.8rem;">${on?'✓':''}</span>
+    </button>`;
+  }).join('');
+}
+function toggleFamPlayer(k){
+  _famSel[k] = _famSel[k]===false ? true : false;
+  // keep at least one selected
+  if (!allProfiles().some(p=>_famSel[p._key||'main']!==false)) _famSel[k]=true;
+  document.getElementById('rs-players').innerHTML = familyPickerHtml();
+}
+function setRoundMode(mode){
+  _roundMode = mode;
+  ['solo','family'].forEach(m=>{
+    const b=document.getElementById('rmode-'+m); if(!b) return;
+    const on=m===mode; b.style.background=on?'var(--green)':'transparent'; b.style.color=on?'#fff':'var(--muted)';
+  });
+  const pw=document.getElementById('rs-players-wrap'); if(pw) pw.style.display=mode==='family'?'block':'none';
+  const ss=document.getElementById('rs-start-solo'); if(ss) ss.style.display=mode==='family'?'none':'block';
+  const sf=document.getElementById('rs-start-family'); if(sf) sf.style.display=mode==='family'?'block':'none';
+  if (mode==='family') document.getElementById('rs-players').innerHTML = familyPickerHtml();
+}
+function startFamilyRound(quick){
+  const date  = document.getElementById('rs-date').value;
+  const numH  = window._setupHoles||18;
+  const par3  = !!window._setupPar3;
+  const cData = window._setupCourse;
+  if (!cData && !quick) { showToast('Search and select a course first — or use quick round','error'); return; }
+  const profs = allProfiles();
+  _famPlayers = profs.filter(p=>_famSel[p._key||'main']!==false).map((p,i)=>({ key:p._key||'main', name:p.name, isKid:!!p.isKid, color:famPlayerColor(p,i) }));
+  if (!_famPlayers.length) { showToast('Pick at least one player','error'); return; }
+  const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
+  const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
+  const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
+  const courseName = cData ? cData.name+(cData.course?' — '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Family Round'));
+  _famRound = { date, course: courseName, par:(par3?numH*3:(tee?.par||holePars.reduce((a,b)=>a+b,0))), tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null };
+  _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc }; });
+  _famIdx = 0;
+  document.getElementById('rm-rt').style.display='none';
+  document.getElementById('rm-close-btn').style.display='none';
+  renderFamHole();
+}
+function _famRunning(key, upto){ let s=0; for(let i=0;i<=upto;i++) s+=(_famHoles[i].scores[key]||0); return s; }
+function renderFamHole(){
+  const h=_famHoles[_famIdx], isLast=_famIdx===_famHoles.length-1;
+  document.getElementById('rm-label').textContent='Family Round';
+  const sub=document.getElementById('rm-sub'); sub.textContent=`Hole ${h.hole} of ${_famHoles.length} · par ${h.par}`; sub.style.display='';
+  const rows=_famPlayers.map(pl=>{
+    const sc=h.scores[pl.key]||0, run=_famRunning(pl.key,_famIdx), vs=run-_famHoles.slice(0,_famIdx+1).reduce((a,x)=>a+x.par,0);
+    const vsStr=vs===0?'E':vs>0?'+'+vs:String(vs);
+    const ini=(pl.name||'?').trim().charAt(0).toUpperCase();
+    return `<div style="display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px;">
+      <span style="width:34px;height:34px;border-radius:50%;background:${pl.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;flex-shrink:0;">${ini}</span>
+      <div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:0.92rem;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(pl.name)}</div><div style="font-size:0.68rem;color:var(--muted);">Total ${run} · ${vsStr}</div></div>
+      <button onclick="famAdj('${pl.key}',-1)" class="step-btn" style="width:40px;height:40px;font-size:1.3rem;flex-shrink:0;touch-action:manipulation;">−</button>
+      <div id="fam-sc-${pl.key}" style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.7rem;min-width:34px;text-align:center;color:var(--cream);">${sc}</div>
+      <button onclick="famAdj('${pl.key}',1)" class="step-btn" style="width:40px;height:40px;font-size:1.3rem;flex-shrink:0;touch-action:manipulation;">+</button>
+    </div>`;
+  }).join('');
+  document.getElementById('rm-body').innerHTML=`
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:2.2rem;color:var(--cream);line-height:1;">Hole ${h.hole}</div>
+        ${h.yds?`<span style="font-size:0.78rem;color:var(--gold);font-weight:700;">${h.yds} yds</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:0.73rem;color:var(--muted);">Par</span>
+        <button onclick="famAdjPar(-1)" style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;">−</button>
+        <span id="fam-par" style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.3rem;color:var(--cream);min-width:18px;text-align:center;">${h.par}</span>
+        <button onclick="famAdjPar(1)" style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;">+</button>
+      </div>
+    </div>
+    ${rows}`;
+  const footer=document.getElementById('rm-footer'); footer.style.display='';
+  footer.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <button onclick="famHoleBack()" ${_famIdx===0?'disabled style="opacity:0.3;"':''} style="flex-shrink:0;height:50px;padding:0 14px;border-radius:10px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:1.1rem;cursor:pointer;touch-action:manipulation;">←</button>
+      <button onclick="famNextHole()" class="btn-gold" style="flex:1;padding:0;height:50px;border-radius:10px;font-size:0.9rem;touch-action:manipulation;">${isLast?'Finish round →':'Next hole →'}</button>
+    </div>
+    <button onclick="closeFamilyRound()" style="width:100%;background:none;border:1px solid rgba(192,57,43,0.35);border-radius:10px;padding:9px;color:rgba(192,57,43,0.8);font-size:0.76rem;font-weight:700;cursor:pointer;touch-action:manipulation;">EXIT FAMILY ROUND</button>`;
+}
+function famAdj(key,d){ const h=_famHoles[_famIdx]; h.scores[key]=Math.max(1,(h.scores[key]||0)+d); const el=document.getElementById('fam-sc-'+key); if(el) el.textContent=h.scores[key]; renderFamHole(); }
+function famAdjPar(d){ const h=_famHoles[_famIdx]; h.par=Math.max(3,Math.min(6,h.par+d)); const el=document.getElementById('fam-par'); if(el) el.textContent=h.par; renderFamHole(); }
+function famHoleBack(){ if(_famIdx>0){ _famIdx--; renderFamHole(); } }
+function famNextHole(){ if(_famIdx===_famHoles.length-1) renderFamilySummary(); else { _famIdx++; renderFamHole(); } }
+function closeFamilyRound(){ if(!confirm('Exit this family round? Scores entered so far will be lost.')) return; document.getElementById('round-modal').classList.remove('on'); unlockBody(); renderHome(); }
+function renderFamilySummary(){
+  const par=_famHoles.reduce((a,h)=>a+h.par,0);
+  const results=_famPlayers.map(pl=>({...pl, total:_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0)})).sort((a,b)=>a.total-b.total);
+  const lead=results[0]?.total;
+  document.getElementById('rm-label').textContent='Family Round Complete';
+  document.getElementById('rm-sub').style.display='none';
+  document.getElementById('rm-rt').style.display='none';
+  document.getElementById('rm-close-btn').style.display='';
+  document.getElementById('rm-footer').style.display='none';
+  const cards=results.map((r,idx)=>{
+    const vs=r.total-par, vsStr=vs===0?'E':vs>0?'+'+vs:String(vs), low=r.total===lead;
+    const ini=(r.name||'?').trim().charAt(0).toUpperCase();
+    return `<div style="display:flex;align-items:center;gap:12px;background:var(--surf);border:1px solid ${low?'var(--gold)':'var(--border)'};border-radius:14px;padding:12px 14px;margin-bottom:10px;">
+      <span style="width:38px;height:38px;border-radius:50%;background:${r.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;">${ini}</span>
+      <div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:0.98rem;color:var(--cream);">${esc(r.name)}${low?' <span style="font-size:0.6rem;color:var(--gold);font-weight:800;letter-spacing:1px;">LOW ROUND</span>':''}</div><div style="font-size:0.72rem;color:var(--muted);">Par ${par}</div></div>
+      <div style="text-align:right;"><div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.8rem;color:var(--cream);line-height:1;">${r.total}</div><div style="font-size:0.74rem;font-weight:700;color:${vs<0?'#60a5fa':vs===0?'#6ec98a':'var(--muted)'};">${vsStr}</div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('rm-body').innerHTML=`
+    <div style="text-align:center;margin-bottom:18px;">
+      <div style="font-size:0.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">${esc(_famRound.course||'Family Round')}</div>
+      <div style="font-size:0.72rem;color:var(--muted);">${_famRound.date||''} · ${_famHoles.length} holes · ${results.length} players</div>
+    </div>
+    ${cards}
+    <button class="btn-gold" style="width:100%;margin:8px 0 10px;" onclick="saveFamilyRound(this)">Save round ✓</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-ghost" style="flex:1;" onclick="document.getElementById('round-modal').classList.remove('on');unlockBody();renderHome();">Done</button>
+      <button style="flex:1;background:none;border:1px solid rgba(201,168,76,0.4);border-radius:12px;padding:12px;color:var(--gold-l);font-size:0.88rem;font-weight:600;cursor:pointer;touch-action:manipulation;" onclick="shareFamilyResults()">&#x1F4E4; Share</button>
+    </div>`;
+}
+async function saveFamilyRound(btn){
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  const par=_famHoles.reduce((a,h)=>a+h.par,0);
+  const base=Date.now();
+  const prevActive=activeKey;
+  for(const pl of _famPlayers){
+    const total=_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0);
+    const rec={ id:base+'-'+pl.key, date:_famRound.date||new Date().toISOString().split('T')[0], course:_famRound.course||'',
+      total, par, holes:_famHoles.length, tee:_famRound.tee||null,
+      round_type:_famRound.round_type||'regulation_18', rating:_famRound.rating||null, slope:_famRound.slope||null, family:true,
+      holeData:_famHoles.map(h=>({hole:h.hole,par:h.par,score:h.scores[pl.key]||0,yds:h.yds})),
+      notes:'Family round · '+_famPlayers.map(x=>x.name).join(', ') };
+    // Save locally under each player's per-profile round key
+    activeKey=pl.key;
+    try{ const k=RK(); const arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(rec); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
+    // Main user also syncs to Supabase when signed in
+    if(pl.key==='main' && _authUser){ try{ await _sb.from('user_rounds').upsert({ ...rec, user_id:_authUser.id, guide_user_id:userId||null, date_played:rec.date }); }catch(e){} }
+  }
+  activeKey=prevActive;
+  rounds=await loadRounds();
+  showToast('Family round saved ✓');
+  document.getElementById('round-modal').classList.remove('on'); unlockBody();
+  renderHome(); renderMyGame();
+}
+function shareFamilyResults(){
+  const par=_famHoles.reduce((a,h)=>a+h.par,0);
+  const results=_famPlayers.map(pl=>({name:pl.name,total:_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0)})).sort((a,b)=>a.total-b.total);
+  const lines=results.map((r,i)=>`${i+1}. ${r.name} — ${r.total} (${r.total-par>=0?'+':''}${r.total-par})`).join('\n');
+  const text=`⛳ ${_famRound.course||'Family Round'} — ${_famRound.date||''}\n${lines}\n\nvia SpinVibes Golf`;
+  if(navigator.share){ navigator.share({title:'Family Round',text}).catch(()=>{}); }
+  else if(navigator.clipboard){ navigator.clipboard.writeText(text).then(()=>showToast('Results copied ✓')).catch(()=>showToast('Copy failed','error')); }
+  else showToast('Sharing not supported here','error');
 }
 
 // ── SHORT GAME ──────────────────────────────────────────────────────
