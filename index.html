@@ -887,7 +887,7 @@ function dailyThoughtsHtml() {
 // Live today (do NOT list): per-member custom plans + profile switcher,
 // solo round tracking, caddie, handicap index, scorecard scan, share cards.
 const COMING_SOON = [
-  { icon:'ti-device-gamepad-2', title:'More game modes', desc:'Team Scramble, Hole Challenge, Kid Birdie Bomb and Team Captain — Junior Scramble and Parents vs. Kids are live now.' },
+  { icon:'ti-device-gamepad-2', title:'Team Captain mode', desc:'A rotating kid captain picks the team’s shot each hole — the last family game mode on the way.' },
   { icon:'ti-cloud', title:'Family stats sync', desc:'Each member’s rounds saved to the cloud across devices.' },
 ];
 function comingSoonHtml() {
@@ -1829,9 +1829,20 @@ const FAM_MODES = [
   { key:'fun',             title:'Just for fun',     desc:'Everyone plays their own ball. Lowest total wins.' },
   { key:'junior_scramble', title:'Junior Scramble',  desc:'Play as one team, best ball each hole. Each kid gets a “bomb drive” per nine.' },
   { key:'parents_vs_kids', title:'Parents vs. Kids', desc:'Kids vs. grown-ups — kids get stroke help. Win the most holes.' },
+  { key:'team_scramble',   title:'Team Scramble',    desc:'Two teams, best ball each hole. Auto-split into mixed teams.' },
+  { key:'hole_challenge',  title:'Hole Challenge',   desc:'Each hole has a side challenge — closest pin, fewest putts, longest drive. Tap the winner.' },
+  { key:'kid_birdie_bomb', title:'Kid Birdie Bomb',  desc:'Each kid has a personal target. Beat it on a hole = a birdie bomb!' },
 ];
 // Per-hole stroke help for a kid in Parents vs Kids (no levels yet → age-based)
 function kidHcp(pl){ const a=pl.age||10; if(!pl.isKid) return 0; if(a<8) return 3; if(a<13) return 2; return 1; }
+// Kid Birdie Bomb personal target = par + offset (younger kids get more room)
+function kidBombOffset(pl){ const a=pl.age||10; if(a<8) return 3; if(a<13) return 2; return 1; }
+const HOLE_CHALLENGE_DEF = {
+  closest_pin:  { label:'Closest to the Pin', hint:'Par 3 — who lands closest?' },
+  fewest_putts: { label:'Fewest Putts',       hint:'Who holes out in the fewest putts?' },
+  longest_drive:{ label:'Longest Drive',      hint:'Who bombs it furthest off the tee?' },
+  hit_fairway:  { label:'Hit the Fairway',    hint:'Who splits the fairway off the tee?' },
+};
 function famModePickerHtml(){
   return FAM_MODES.map(m=>{
     const on=_famMode===m.key;
@@ -1884,20 +1895,32 @@ function startFamilyRound(quick){
   const profs = allProfiles();
   _famPlayers = profs.filter(p=>_famSel[p._key||'main']!==false).map((p,i)=>({ key:p._key||'main', name:p.name, isKid:!!p.isKid, age:p.age, color:famPlayerColor(p,i) }));
   if (!_famPlayers.length) { showToast('Pick at least one player','error'); return; }
-  // Game mode setup + validation
+  // Game mode validation
   const kids = _famPlayers.filter(p=>p.isKid), adults = _famPlayers.filter(p=>!p.isKid);
   if (_famMode==='parents_vs_kids' && (!kids.length || !adults.length)) { showToast('Parents vs. Kids needs at least one kid and one grown-up','error'); return; }
-  if (_famMode==='junior_scramble' && _famPlayers.length<2) { showToast('Junior Scramble needs at least two players','error'); return; }
+  if ((_famMode==='junior_scramble'||_famMode==='team_scramble') && _famPlayers.length<2) { showToast('That mode needs at least two players','error'); return; }
+  if (_famMode==='kid_birdie_bomb' && !kids.length) { showToast('Kid Birdie Bomb needs at least one kid','error'); return; }
+  const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
+  const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
+  const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
+  const courseName = cData ? cData.name+(cData.course?' — '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Family Round'));
+  // Game-mode data (holePars now known)
   if (_famMode==='parents_vs_kids') {
     const kidHandicaps={}; kids.forEach(k=>kidHandicaps[k.key]=kidHcp(k));
     _famModeData={ kids:kids.map(k=>k.key), adults:adults.map(a=>a.key), kidHandicaps };
   } else if (_famMode==='junior_scramble') {
     _famModeData={ kids:kids.map(k=>k.key), bombsUsed:{}, rescuedHoles:{} };
+  } else if (_famMode==='team_scramble') {
+    const teams={a:[],b:[]}; _famPlayers.forEach((p,i)=>(i%2===0?teams.a:teams.b).push(p.key));
+    _famModeData={ teams, teamNames:{a:'Team A',b:'Team B'} };
+  } else if (_famMode==='hole_challenge') {
+    const ROT=['fewest_putts','longest_drive','hit_fairway']; const ch={}; let r=0;
+    holePars.forEach((p,i)=>{ ch[i+1]= (p===3)?'closest_pin':ROT[(r++)%ROT.length]; });
+    _famModeData={ challenges:ch, wins:{} };
+  } else if (_famMode==='kid_birdie_bomb') {
+    const off={}; kids.forEach(k=>off[k.key]=kidBombOffset(k));
+    _famModeData={ kids:kids.map(k=>k.key), kidTargetOffset:off };
   } else { _famModeData=null; }
-  const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
-  const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
-  const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
-  const courseName = cData ? cData.name+(cData.course?' — '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Family Round'));
   _famRound = { date, course: courseName, par:(par3?numH*3:(tee?.par||holePars.reduce((a,b)=>a+b,0))), tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null, game_mode:_famMode };
   _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc }; });
   _famIdx = 0;
@@ -1983,7 +2006,60 @@ function famModeBanner(h){
       <div style="display:flex;gap:8px;">${box(adultNames,'#1D9E75',adultBest,'raw')}${box(kidNames,'#7F77DD',kidsBest,kidSub)}</div>
     </div>`;
   }
+  if (_famMode==='team_scramble' && _famModeData){
+    const gm=_famModeData;
+    const teamBox=(tk,color)=>{
+      const mem=gm.teams[tk]||[]; const sc=mem.map(k=>h.scores[k]).filter(s=>s>0); const best=sc.length?Math.min(...sc):null;
+      const names=mem.map(k=>_famPlayers.find(p=>p.key===k)?.name).join(' & ');
+      return `<div style="flex:1;background:${color}14;border:1px solid ${color}55;border-radius:11px;padding:9px 11px;">
+        <div style="font-size:0.64rem;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:${color};margin-bottom:2px;">${gm.teamNames[tk]}</div>
+        <div style="font-size:0.66rem;color:var(--muted);margin-bottom:3px;">${names}</div>
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.4rem;color:var(--cream);">${best!=null?best:'—'}</div></div>`;
+    };
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;">Team Scramble — best ball this hole</div>
+      <div style="display:flex;gap:8px;">${teamBox('a','#378ADD')}${teamBox('b','#D4537E')}</div>
+    </div>`;
+  }
+  if (_famMode==='hole_challenge' && _famModeData){
+    const key=_famModeData.challenges[h.hole]; const def=HOLE_CHALLENGE_DEF[key]||{label:key,hint:''};
+    const winner=_famModeData.wins[h.hole];
+    if (winner){
+      const pl=_famPlayers.find(p=>p.key===winner);
+      return `<div style="display:flex;align-items:center;gap:10px;background:rgba(212,83,126,0.08);border:1px solid rgba(212,83,126,0.35);border-radius:12px;padding:11px 13px;margin-bottom:12px;">
+        <i class="ti ti-medal" style="font-size:1.3rem;color:#D4537E;"></i>
+        <div style="flex:1;"><div style="font-size:0.84rem;font-weight:700;color:#D4537E;">${def.label} — ${pl?.name||''} wins!</div><div style="font-size:0.68rem;color:var(--muted);">${def.hint}</div></div>
+        <button onclick="famChallengeWin(null)" style="background:none;border:none;color:var(--muted);font-size:0.68rem;text-decoration:underline;cursor:pointer;touch-action:manipulation;">Undo</button>
+      </div>`;
+    }
+    const btns=_famPlayers.map(pl=>`<button onclick="famChallengeWin('${pl.key}')" style="font-size:0.74rem;font-weight:700;color:${pl.color};padding:7px 13px;background:${pl.color}18;border:1.5px solid ${pl.color}66;border-radius:18px;cursor:pointer;touch-action:manipulation;">${pl.name}</button>`).join('');
+    return `<div style="margin-bottom:12px;background:rgba(212,83,126,0.06);border:1px solid rgba(212,83,126,0.28);border-radius:12px;padding:11px 13px;">
+      <div style="font-size:0.66rem;color:#D4537E;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;">Challenge: ${def.label}</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin:3px 0 8px;">${def.hint} — tap the winner:</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">${btns}<button onclick="famChallengeWin(null)" style="font-size:0.72rem;color:var(--muted);padding:7px 11px;background:var(--surf2);border:1px solid var(--border);border-radius:18px;cursor:pointer;touch-action:manipulation;">Skip</button></div>
+    </div>`;
+  }
+  if (_famMode==='kid_birdie_bomb' && _famModeData){
+    const gm=_famModeData;
+    const rows=gm.kids.map(k=>{
+      const pl=_famPlayers.find(p=>p.key===k); if(!pl) return '';
+      const target=h.par+(gm.kidTargetOffset[k]||2); const sc=h.scores[k]; const bomb=sc!=null&&sc<=target;
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:0.74rem;color:var(--cream);padding:3px 0;">
+        <span style="width:20px;height:20px;border-radius:50%;background:${pl.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.66rem;">${(pl.name||'?')[0]}</span>
+        <span style="flex:1;">${pl.name} · target ${target}</span>
+        <span style="font-weight:700;color:${bomb?'#249657':'var(--muted)'};">${bomb?'💥 BOMB!':(sc!=null?sc:'—')}</span></div>`;
+    }).join('');
+    return `<div style="margin-bottom:12px;background:rgba(36,150,87,0.06);border:1px solid rgba(36,150,87,0.28);border-radius:12px;padding:11px 13px;">
+      <div style="font-size:0.66rem;color:var(--green);font-weight:700;letter-spacing:0.6px;text-transform:uppercase;margin-bottom:6px;">Birdie Bomb — beat your target</div>${rows}
+    </div>`;
+  }
   return '';
+}
+function famChallengeWin(k){
+  if(!_famModeData) return; const h=_famHoles[_famIdx];
+  if(k){ _famModeData.wins[h.hole]=k; showToast(`${_famPlayers.find(p=>p.key===k)?.name} wins the hole!`); }
+  else delete _famModeData.wins[h.hole];
+  renderFamHole();
 }
 function famBomb(k){
   const gm=_famModeData; if(!gm) return;
@@ -2071,6 +2147,47 @@ function famRecapHeaderHtml(par){
       </div>
       <div style="font-size:0.9rem;font-weight:800;color:var(--cream);margin-top:8px;">${even?'All square!':(kidsWin?'Kids win! 🎉':'Parents win!')}${tie?` <span style="font-size:0.66rem;color:var(--muted);font-weight:600;">(${tie} halved)</span>`:''}</div>
     </div>
+    <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Everyone's round</div>`;
+  }
+  if (_famMode==='team_scramble' && _famModeData){
+    const gm=_famModeData;
+    const total=tk=>{ let t=0; _famHoles.forEach(h=>{ const s=(gm.teams[tk]||[]).map(k=>h.scores[k]).filter(x=>x>0); if(s.length) t+=Math.min(...s); }); return t; };
+    const ta=total('a'), tb=total('b'), aWin=ta<tb, even=ta===tb;
+    const teamCol=(tk,color,score,win)=>`<div style="flex:1;background:${color}14;border:1px solid ${win?color:color+'55'};border-radius:12px;padding:12px;text-align:center;">
+      <div style="font-size:0.62rem;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:${color};">${gm.teamNames[tk]}</div>
+      <div style="font-size:0.66rem;color:var(--muted);margin:2px 0 4px;">${(gm.teams[tk]||[]).map(k=>_famPlayers.find(p=>p.key===k)?.name).join(' & ')}</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2rem;color:var(--cream);line-height:1;">${score}</div>
+      <div style="font-size:0.7rem;font-weight:700;color:${score-par<0?'#60a5fa':score-par===0?'#6ec98a':'var(--muted)'};">${score-par===0?'E':(score-par>0?'+':'')+(score-par)}</div></div>`;
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;gap:8px;">${teamCol('a','#378ADD',ta,aWin&&!even)}${teamCol('b','#D4537E',tb,!aWin&&!even)}</div>
+      <div style="text-align:center;font-size:0.9rem;font-weight:800;color:var(--cream);margin-top:10px;">${even?'All square!':((aWin?gm.teamNames.a:gm.teamNames.b)+' win! 🎉')}</div>
+    </div>
+    <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Everyone's round</div>`;
+  }
+  if (_famMode==='hole_challenge' && _famModeData){
+    const counts={}; Object.values(_famModeData.wins).forEach(k=>counts[k]=(counts[k]||0)+1);
+    const ranked=_famPlayers.map(pl=>({pl,n:counts[pl.key]||0})).sort((a,b)=>b.n-a.n);
+    const top=ranked[0]?.n||0;
+    const rows=ranked.map(r=>`<div style="display:flex;align-items:center;gap:10px;padding:5px 0;">
+      <span style="width:26px;height:26px;border-radius:50%;background:${r.pl.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.72rem;">${(r.pl.name||'?')[0]}</span>
+      <span style="flex:1;font-size:0.86rem;font-weight:700;color:var(--cream);">${r.pl.name}${r.n===top&&top>0?' <span style="font-size:0.6rem;color:#D4537E;font-weight:800;">MOST</span>':''}</span>
+      <span style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.2rem;color:var(--cream);">${r.n}</span></div>`).join('');
+    return `<div style="background:rgba(212,83,126,0.07);border:1px solid rgba(212,83,126,0.32);border-radius:14px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#D4537E;margin-bottom:6px;">Challenges won</div>${rows}</div>
+    <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Everyone's round</div>`;
+  }
+  if (_famMode==='kid_birdie_bomb' && _famModeData){
+    const gm=_famModeData;
+    const rows=gm.kids.map(k=>{
+      const pl=_famPlayers.find(p=>p.key===k); if(!pl) return '';
+      let bombs=0; _famHoles.forEach(h=>{ const t=h.par+(gm.kidTargetOffset[k]||2); const s=h.scores[k]; if(s!=null&&s<=t) bombs++; });
+      return `<div style="display:flex;align-items:center;gap:10px;padding:5px 0;">
+        <span style="width:26px;height:26px;border-radius:50%;background:${pl.color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.72rem;">${(pl.name||'?')[0]}</span>
+        <span style="flex:1;font-size:0.86rem;font-weight:700;color:var(--cream);">${pl.name}</span>
+        <span style="font-size:0.9rem;font-weight:800;color:var(--green);">${bombs} 💥</span></div>`;
+    }).join('');
+    return `<div style="background:rgba(36,150,87,0.07);border:1px solid rgba(36,150,87,0.32);border-radius:14px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green);margin-bottom:6px;">Birdie bombs</div>${rows}</div>
     <div style="font-size:0.62rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Everyone's round</div>`;
   }
   return '';
