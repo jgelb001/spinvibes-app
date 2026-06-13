@@ -888,7 +888,6 @@ function dailyThoughtsHtml() {
 // solo round tracking, caddie, handicap index, scorecard scan, share cards.
 const COMING_SOON = [
   { icon:'ti-device-gamepad-2', title:'More game modes', desc:'Team Scramble, Hole Challenge, Kid Birdie Bomb and Team Captain — Junior Scramble and Parents vs. Kids are live now.' },
-  { icon:'ti-stars', title:'Kid leveling & badges', desc:'Levels, check-ins and rewards as the kids improve.' },
   { icon:'ti-cloud', title:'Family stats sync', desc:'Each member’s rounds saved to the cloud across devices.' },
 ];
 function comingSoonHtml() {
@@ -906,6 +905,89 @@ function comingSoonHtml() {
           <span style="flex-shrink:0;font-size:0.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 7px;margin-top:2px;">Soon</span>
         </div>`).join('')}
     </div>`;
+}
+
+// ── KID LEVELING & BADGES (play-based) ───────────────────────────
+// Points are DERIVED from a kid's saved rounds (deterministic, no counters to drift).
+// Levels/thresholds ported from the PWA; gates simplified to pure points.
+const KID_LEVELS = [
+  { name:'Fresh Caddie',     color:'#888780', icon:'ti-backpack' },
+  { name:'Grip & Ripper',    color:'#639922', icon:'ti-golf' },
+  { name:'Ball Finder',      color:'#1D9E75', icon:'ti-zoom-in' },
+  { name:'Straight Shooter', color:'#378ADD', icon:'ti-target' },
+  { name:'Par Machine',      color:'#7F77DD', icon:'ti-settings' },
+  { name:'Course Reader',    color:'#D4537E', icon:'ti-map-2' },
+  { name:'Shot Shaper',      color:'#BA7517', icon:'ti-scissors' },
+  { name:'Course Boss',      color:'#D85A30', icon:'ti-crown' },
+  { name:'Tour Bound',       color:'#c8922a', icon:'ti-trophy' },
+];
+const KID_LEVEL_THRESH = [4,12,25,42,65,95,130,170]; // cumulative pts to REACH levels 1..8
+function kidPointsFromRounds(rds){
+  let p=0;
+  (rds||[]).filter(r=>!r.practice).forEach(r=>{
+    p+=3;                                   // played a round
+    if(r.family) p+=1;                      // played with the family
+    if(r.game_mode==='junior_scramble') p+=1;
+    const hd=r.holeData||[];
+    if(hd.some(h=>h.score!=null&&h.par!=null&&h.score<=h.par)) p+=2;  // made par or better
+    if(hd.some(h=>h.score!=null&&h.par!=null&&h.score<h.par))  p+=2;  // birdie or better
+  });
+  return p;
+}
+function kidLevelInfo(pts){
+  let lvl=0; for(let i=0;i<KID_LEVEL_THRESH.length;i++){ if(pts>=KID_LEVEL_THRESH[i]) lvl=i+1; }
+  const floor = lvl===0?0:KID_LEVEL_THRESH[lvl-1];
+  const nextAt = lvl<8?KID_LEVEL_THRESH[lvl]:null;
+  const into = pts-floor, span = nextAt!=null?nextAt-floor:1;
+  return { level:lvl, pts, into, span, nextAt, pct: nextAt!=null?Math.min(100,Math.round(into/span*100)):100 };
+}
+const KID_BADGES = [
+  { id:'first_round', name:'First Round',  icon:'ti-flag',         check:(r,p,l)=>r.length>=1 },
+  { id:'par_maker',   name:'Par Maker',    icon:'ti-target',       check:(r)=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<=h.par)) },
+  { id:'birdie',      name:'Birdie!',      icon:'ti-feather',      check:(r)=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<h.par)) },
+  { id:'family',      name:'Family Player',icon:'ti-users',        check:(r)=>r.some(x=>x.family) },
+  { id:'scrambler',   name:'Scrambler',    icon:'ti-rocket',       check:(r)=>r.some(x=>x.game_mode==='junior_scramble') },
+  { id:'regular',     name:'Regular',      icon:'ti-calendar',     check:(r)=>r.filter(x=>!x.practice).length>=5 },
+  { id:'veteran',     name:'Veteran',      icon:'ti-medal',        check:(r)=>r.filter(x=>!x.practice).length>=10 },
+  { id:'tour_bound',  name:'Tour Bound',   icon:'ti-trophy',       check:(r,p,l)=>l>=8 },
+];
+function kidLevelHtml(){
+  const rds = rounds||[];
+  const pts = kidPointsFromRounds(rds);
+  const info = kidLevelInfo(pts);
+  const lv = KID_LEVELS[info.level];
+  const earned = KID_BADGES.filter(b=>b.check(rds,pts,info.level));
+  const badgeGrid = KID_BADGES.map(b=>{
+    const on=earned.includes(b);
+    return `<div style="flex:0 0 auto;text-align:center;width:62px;opacity:${on?1:0.32};">
+      <div style="width:46px;height:46px;margin:0 auto 4px;border-radius:50%;background:${on?lv.color+'22':'var(--surf2)'};border:1.5px solid ${on?lv.color:'var(--border)'};display:flex;align-items:center;justify-content:center;"><i class="ti ${b.icon}" style="font-size:1.2rem;color:${on?lv.color:'var(--muted)'};"></i></div>
+      <div style="font-size:0.58rem;font-weight:700;color:${on?'var(--cream)':'var(--muted)'};line-height:1.1;">${b.name}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px;border:1px solid ${lv.color}55;">
+    <div style="display:flex;align-items:center;gap:13px;">
+      <div style="position:relative;width:56px;height:56px;flex-shrink:0;">
+        <svg viewBox="0 0 56 56" style="width:56px;height:56px;transform:rotate(-90deg);"><circle cx="28" cy="28" r="25" fill="none" stroke="var(--surf2)" stroke-width="5"/><circle cx="28" cy="28" r="25" fill="none" stroke="${lv.color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${Math.round(info.pct/100*157)} 157"/></svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><i class="ti ${lv.icon}" style="font-size:1.4rem;color:${lv.color};"></i></div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);">Level ${info.level} · ${pts} pts</div>
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.25rem;color:var(--cream);line-height:1.1;">${lv.name}</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${info.nextAt!=null?`${info.nextAt-pts} pts to ${KID_LEVELS[info.level+1].name}`:'Max level — tournament ready!'}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;overflow-x:auto;margin-top:14px;padding-bottom:2px;">${badgeGrid}</div>
+  </div>`;
+}
+// Detect a level-up for a kid after a round saves, and celebrate.
+function checkKidLevelUp(key, rds){
+  const info = kidLevelInfo(kidPointsFromRounds(rds));
+  const sk = 'sv-kidlvl-'+(userId||'g')+'-'+key;
+  let prev = 0; try{ prev = parseInt(localStorage.getItem(sk))||0; }catch(e){}
+  if (info.level>prev){ try{ localStorage.setItem(sk, String(info.level)); }catch(e){}
+    const nm = (key==='main'?mainProfile:family.find(f=>f._key===key))?.name || 'They';
+    showToast(`🎉 ${nm} reached ${KID_LEVELS[info.level].name}!`);
+  } else if (info.level<prev){ try{ localStorage.setItem(sk, String(info.level)); }catch(e){} }
 }
 
 function renderHome() {
@@ -945,6 +1027,8 @@ function renderHome() {
       ${last?`<div class="stat"><div class="stat-n">${last.total}</div><div class="stat-l">Last Round</div></div>`:''}
       <div class="stat"><div class="stat-n">${rs.length}</div><div class="stat-l">Rounds</div></div>
     </div>`:''}
+
+    ${p.isKid?kidLevelHtml():''}
 
     <div class="grid2">
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Start Round</div><div class="qc-sub">Track hole by hole</div></div>
@@ -1731,6 +1815,7 @@ async function saveCompletedRound() {
   };
   await persistRound(r);
   if (!_authUser) rounds = [...rounds.filter(x=>x.id!==r.id), r];
+  if (profile.isKid) checkKidLevelUp(activeKey, rounds);
   showToast('Round saved ✓');
   document.getElementById('round-modal').classList.remove('on');
   unlockBody(); refreshResumeBanner(); renderMyGame(); renderHome();
@@ -2004,7 +2089,10 @@ async function saveFamilyRound(btn){
       notes:'Family round'+(_famMode!=='fun'?' ('+((FAM_MODES.find(m=>m.key===_famMode)||{}).title||'')+')':'')+' · '+_famPlayers.map(x=>x.name).join(', ') };
     // Save locally under each player's per-profile round key
     activeKey=pl.key;
-    try{ const k=RK(); const arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(rec); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
+    let arr=[];
+    try{ const k=RK(); arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(rec); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
+    // Kid leveling — celebrate any level-up from this round
+    if(pl.isKid) checkKidLevelUp(pl.key, arr);
     // Main user also syncs to Supabase when signed in
     if(pl.key==='main' && _authUser){ try{ await _sb.from('user_rounds').upsert({ ...rec, user_id:_authUser.id, guide_user_id:userId||null, date_played:rec.date }); }catch(e){} }
   }
