@@ -1220,7 +1220,7 @@ function renderCaddie() {
   const p = profile;
   const bagStr  = p.bag||'standard set';
   const distStr = p.distances ? Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(', ') : '';
-  const sys = `You are a concise golf caddie for ${p.name}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()} 2-4 sentences max. Lead with the key number or club.`;
+  const sys = `You are a concise golf caddie for ${p.name}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()} Lead with the key number or club, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words).`;
   document.getElementById('pg-caddie').innerHTML = `
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Caddie</div>
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">Club selection · course strategy · swing tips</div>
@@ -1948,7 +1948,7 @@ async function sendHoleCaddie() {
   const p=profile, h=_holes[_holeIdx];
   const bagStr=p.bag||'standard set';
   const distStr=p.distances?Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(','):'';
-  const sys=`Caddie for ${p.name} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()} 2-4 sentences. Lead with the recommendation.`;
+  const sys=`Caddie for ${p.name} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()} Lead with the recommendation, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words).`;
   el.innerHTML+=`<div class="msg u">${esc(msg)}</div>`;
   const t=document.createElement('div'); t.className='msg c'; t.textContent='…'; el.appendChild(t); el.scrollTop=el.scrollHeight;
   _caddieHist.push({role:'user',content:msg}); if(_caddieHist.length>8) _caddieHist=_caddieHist.slice(-8);
