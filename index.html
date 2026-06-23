@@ -478,7 +478,8 @@ function suggestClub(yds) {
     _authUser = session.user;
     document.getElementById('loading-sub').textContent = 'Loading your profile…';
     try {
-      const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?auth_id=eq.${session.user.id}&select=*&limit=1`, { headers: SB_HDR });
+      // Read as the authenticated user (JWT), so it survives Phase-2 RLS (owner policy = auth_id = auth.uid()).
+      const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?auth_id=eq.${session.user.id}&select=*&limit=1`, { headers: { ...SB_HDR, Authorization: `Bearer ${session.access_token}` } });
       const rows = await res.json();
       if (rows?.[0]) {
         profile = rows[0]; userId = profile.id;
@@ -3017,7 +3018,8 @@ function showLoginScreen() {
     if (event === 'SIGNED_IN' && sess) {
       _authUser = sess.user;
       document.getElementById('login-msg').innerHTML = '<strong style="color:var(--gold);">Signed in!</strong> Loading your profile…';
-      const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?auth_id=eq.${sess.user.id}&select=*&limit=1`, { headers: SB_HDR });
+      // Authenticated read (JWT) — survives Phase-2 RLS owner policy.
+      const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?auth_id=eq.${sess.user.id}&select=*&limit=1`, { headers: { ...SB_HDR, Authorization: `Bearer ${sess.access_token}` } });
       const rows = await res.json();
       if (rows?.[0]) {
         profile = rows[0]; userId = profile.id;
