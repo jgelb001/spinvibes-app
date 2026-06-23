@@ -1,4 +1,4 @@
--- Family stats sync — one-time setup.  SAFE TO RE-RUN.
+-- Family stats sync, one-time setup.  SAFE TO RE-RUN.
 -- Drops any partial/old version first, then creates a clean table. There's no
 -- real data in this table yet, so the drop is harmless.
 --

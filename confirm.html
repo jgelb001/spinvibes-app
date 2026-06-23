@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>SpinVibes — Sign In</title>
+  <title>SpinVibes, Sign In</title>
   <meta name="theme-color" content="#0d1a0f">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;600;700&display=swap">
@@ -57,7 +57,7 @@
       try {
         const { error } = await _sb.auth.verifyOtp({ token_hash: tokenHash, type });
         if (error) throw error;
-        // Session is stored — go to the app (same-origin only, session persists)
+        // Session is stored, go to the app (same-origin only, session persists)
         const safeNext = next.startsWith('/') ? next
           : (next.startsWith(location.origin) ? next : '/');
         location.replace(safeNext);
@@ -66,8 +66,8 @@
         btn.innerHTML = '&#x26F3; Open My SpinVibes App &#x2192;';
         document.getElementById('msg').textContent =
           (e.message || '').includes('expired') || (e.message || '').includes('invalid')
-            ? 'This link has expired — request a fresh one from the app sign-in screen.'
-            : 'Something went wrong — ' + (e.message || 'try again.');
+            ? 'This link has expired, request a fresh one from the app sign-in screen.'
+            : 'Something went wrong, ' + (e.message || 'try again.');
       }
     }
   </script>

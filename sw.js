@@ -16,7 +16,7 @@ self.addEventListener('fetch', e => {
     (url.pathname === '/' || url.pathname.endsWith('.html'));
 
   if (isShell) {
-    // NETWORK-FIRST for HTML — users always get the latest app, cache only as offline fallback
+    // NETWORK-FIRST for HTML, users always get the latest app, cache only as offline fallback
     e.respondWith(
       fetch(e.request).then(res => {
         const clone = res.clone();

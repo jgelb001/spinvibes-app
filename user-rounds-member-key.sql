@@ -3,7 +3,7 @@
 -- The iOS app (and, going forward, the web app) tags each solo round with the
 -- active profile it was logged under: "main" for the account holder, or a member
 -- name slug for a family member. My Game then filters round history + stats +
--- handicap to the active profile — mirroring the web app's per-member `RK()` keys.
+-- handicap to the active profile, mirroring the web app's per-member `RK()` keys.
 --
 -- Existing rows predate this column, so they're backfilled to "main" (the holder).
 

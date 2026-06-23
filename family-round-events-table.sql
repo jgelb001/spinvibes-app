@@ -1,9 +1,9 @@
--- Family round EVENTS — iOS native app's family-round log.  SAFE TO RE-RUN.
+-- Family round EVENTS, iOS native app's family-round log.  SAFE TO RE-RUN.
 --
 -- Background: the web app's `family_rounds` table stores PER-MEMBER rows
 -- (member_key + round jsonb) for family stats sync. The iOS app instead logs
 -- one EVENT row per family round (course, players, hole-by-hole, game mode).
--- Two different shapes — so iOS gets its own table here and leaves
+-- Two different shapes, so iOS gets its own table here and leaves
 -- `family_rounds` (web) untouched.
 --
 -- iOS supplies: date_played, course_name, course_par, players, holes, totals,
