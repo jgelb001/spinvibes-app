@@ -304,6 +304,20 @@ const CADDIE_URL    = 'https://spinvibes-caddie.spinvibes.workers.dev';
 const WORKER_SECRET = 'sv-golf-2026-xK9mPqR4nBzT';
 const SB_HDR = { 'Content-Type':'application/json', apikey: SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}` };
 
+// Guest profile read by UUID — prefers the secure get_guide_user() RPC (so the DB
+// can't be enumerated once Phase-2 RLS revokes anon SELECT); falls back to the direct
+// REST select if the RPC isn't deployed yet. Zero-downtime either way.
+async function fetchGuideUserById(id) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_guide_user`, {
+      method: 'POST', headers: SB_HDR, body: JSON.stringify({ p_id: id }),
+    });
+    if (r.ok) { const rows = await r.json(); if (Array.isArray(rows)) return rows; }
+  } catch (e) { /* fall through */ }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${id}&select=*&limit=1`, { headers: SB_HDR });
+  return res.json();
+}
+
 // Supabase JS client — handles auth sessions automatically
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
@@ -480,8 +494,7 @@ function suggestClub(yds) {
   const cached = localStorage.getItem('sv-profile-' + userId);
   if (cached) { try { profile = JSON.parse(cached); bootApp(); } catch(e) {} }
   try {
-    const res  = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}&select=*&limit=1`, { headers: SB_HDR });
-    const rows = await res.json();
+    const rows = await fetchGuideUserById(userId);
     if (rows?.[0]) {
       profile = rows[0];
       localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile));
@@ -2937,12 +2950,21 @@ function persistRounds() { try { localStorage.setItem(RK(), JSON.stringify(round
 
 // ── AUTH FUNCTIONS ───────────────────────────────────────────────
 async function linkAuthToProfile(authId) {
+  const token = (await _sb.auth.getSession()).data.session?.access_token || SUPABASE_ANON;
+  const authHdr = { ...SB_HDR, Authorization: `Bearer ${token}` };
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
-      method: 'PATCH',
-      headers: { ...SB_HDR, Authorization: `Bearer ${(await _sb.auth.getSession()).data.session?.access_token || SUPABASE_ANON}`, Prefer: 'return=minimal' },
-      body: JSON.stringify({ auth_id: authId })
+    // Preferred: security-definer RPC links auth_id = auth.uid() only if the row is
+    // unclaimed. Survives Phase-2 RLS (a plain authenticated UPDATE can't set auth_id
+    // on a row whose auth_id is still null). Falls back to the legacy PATCH pre-Phase-2.
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/link_auth_to_profile`, {
+      method: 'POST', headers: authHdr, body: JSON.stringify({ p_id: userId }),
     });
+    if (!r.ok) {
+      await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
+        method: 'PATCH', headers: { ...authHdr, Prefer: 'return=minimal' },
+        body: JSON.stringify({ auth_id: authId }),
+      });
+    }
     if (profile) { profile.auth_id = authId; localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile)); }
   } catch(e) { console.warn('linkAuthToProfile failed', e); }
 }
