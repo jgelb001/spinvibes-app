@@ -530,10 +530,11 @@ function showErr(m) {
 
 function bootApp() {
   const isPreview = !userId || userId.startsWith('preview_');
-  // Effective PIN: Supabase-stored or locally-set
-  const effectivePin = (!isPreview && (profile?.app_pin || localStorage.getItem('sv-pin-' + userId))) || null;
-  if (effectivePin && !sessionStorage.getItem('sv-authed-' + userId)) {
-    showPinGate(effectivePin); return;
+  // Is a PIN set? The server value is a hash/sentinel now (never compared in JS) —
+  // we only need to know one EXISTS. Verification happens in verifyPin().
+  const hasPin = !isPreview && (profile?.app_pin || localStorage.getItem('sv-pin-' + userId));
+  if (hasPin && !sessionStorage.getItem('sv-authed-' + userId)) {
+    showPinGate(); return;
   }
   _launchApp();
 }
@@ -554,11 +555,25 @@ async function _launchApp() {
 // ── PIN GATE ─────────────────────────────────────────────────────
 let _gatePin = '';
 
-function showPinGate(effectivePin) {
+// Verify an entered PIN. Prefers the locally-stored copy (offline-friendly, and
+// this is the user's own device); otherwise checks server-side via verify_app_pin,
+// so the raw/hashed PIN never has to live on the client.
+async function verifyPin(pin) {
+  const local = localStorage.getItem('sv-pin-' + userId);
+  if (local != null) return pin === local;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/verify_app_pin`, {
+      method: 'POST', headers: SB_HDR, body: JSON.stringify({ p_id: userId, p_pin: pin }),
+    });
+    if (!r.ok) return false;
+    return (await r.json()) === true;
+  } catch (e) { return false; }
+}
+
+function showPinGate() {
   document.getElementById('loading').style.display = 'none';
   const el = document.createElement('div');
   el.id = 'pin-gate';
-  el._pin = effectivePin;
   el.style.cssText = 'position:fixed;inset:0;background:var(--bg,#0d1a0f);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;z-index:9999;';
   el.innerHTML = `
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--gold,#c9a84c);letter-spacing:4px;margin-bottom:4px;">SPINVIBES</div>
@@ -593,8 +608,9 @@ function gateKey(k) {
   }
   document.getElementById('gate-err').textContent = '';
   if (_gatePin.length === 4) {
-    setTimeout(() => {
-      if (_gatePin === document.getElementById('pin-gate')._pin) {
+    const entered = _gatePin;
+    setTimeout(async () => {
+      if (await verifyPin(entered)) {
         sessionStorage.setItem('sv-authed-' + userId, '1');
         document.getElementById('pin-gate').remove();
         _launchApp();
