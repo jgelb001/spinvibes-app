@@ -736,7 +736,7 @@ function openSettings() {
       <label class="ml">Miss tendency, feeds your caddie</label>
       <select id="set-miss" class="mi">${MISS_OPTS.map(([v,l])=>opt(v,l,miss)).join('')}</select>
 
-      <div class="sec-title">My bag, carry distances (yds)</div>
+      <div class="sec-title">My bag: carry distances (yds)</div>
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Used by the caddie and club suggestions. Leave blank to keep the default shown.</div>
       ${SET_CLUBS.map(([k,l])=>`
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
@@ -857,9 +857,9 @@ async function saveSettings() {
 // Universal pool (any golfer). Two rotate in daily, date-seeded. A lefty
 // bonus tip is appended when the profile is left-handed.
 const DAILY_THOUGHTS = [
-  { icon:'ti-target',      tag:'drill',    title:'Gate drill, putting',        body:'Stand two tees just wider than your putter, 6 inches ahead of the ball, a little doorway. Roll 10 in a row from 6 feet without clipping them. Best stroke trainer you can do anywhere.' },
+  { icon:'ti-target',      tag:'drill',    title:'Gate drill: putting',        body:'Stand two tees just wider than your putter, 6 inches ahead of the ball, a little doorway. Roll 10 in a row from 6 feet without clipping them. Best stroke trainer you can do anywhere.' },
   { icon:'ti-rotate',      tag:'drill',    title:'Towel under the arms',         body:'Tuck a towel under both armpits and hit half 7-irons. If it drops, your arms came off your body, and that disconnect is the #1 cause of over-the-top pulls.' },
-  { icon:'ti-clock',       tag:'drill',    title:'Clock drill, wedges',         body:'From 20 yards, chip to imaginary clock positions at 3, 6, 9 and 12 o\'clock around the hole. Trains distance control in every direction, not just straight at the flag.' },
+  { icon:'ti-clock',       tag:'drill',    title:'Clock drill: wedges',         body:'From 20 yards, chip to imaginary clock positions at 3, 6, 9 and 12 o\'clock around the hole. Trains distance control in every direction, not just straight at the flag.' },
   { icon:'ti-flame',       tag:'drill',    title:'Half-speed driver day',        body:'On the range today, swing every driver at 50%, just solid contact and a tall finish. You\'ll likely hit it nearly as far, and learn how much of your miss is simply over-swinging.' },
   { icon:'ti-golf',        tag:'drill',    title:'One-club bucket',              body:'Take only your 7-iron to the range, chips, full swings, punches, high shots. Forces creativity and builds real feel for the club. The best short-session drill there is.' },
   { icon:'ti-crosshair',   tag:'drill',    title:'Lag putting circuit',          body:'5 balls each from 20, 30 and 40 feet. Picture a 3-foot bucket around the hole, every ball that finishes inside is a win. The cheapest stroke-saver in the bag.' },
@@ -1341,7 +1341,7 @@ function kidRangeHtml(tier){
   const c=KID_CONTENT[tier];
   return `${_kidHeader(tier,'Range & warm-up')}
     <div class="card" style="border-color:rgba(201,168,76,0.3);background:rgba(201,168,76,0.05);margin-bottom:14px;">
-      <div class="card-title" style="color:var(--gold);margin-bottom:8px;"><i class="ti ti-accessibility" style="vertical-align:-2px;margin-right:6px;"></i>Wake-up wiggles, 3 min</div>
+      <div class="card-title" style="color:var(--gold);margin-bottom:8px;"><i class="ti ti-accessibility" style="vertical-align:-2px;margin-right:6px;"></i>Wake-up wiggles · 3 min</div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:0.84rem;color:var(--muted);">${c.warm.map(w=>`<div>${w}</div>`).join('')}</div>
     </div>
     <div class="card" style="border-color:rgba(201,168,76,0.25);background:rgba(201,168,76,0.05);margin-bottom:14px;">
@@ -1405,7 +1405,7 @@ function renderRange() {
     <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${SKILL[skill]||skill} · ${GOAL[goal]||goal}</div>
 
     <div class="card" style="border-color:rgba(201,168,76,0.3);background:rgba(201,168,76,0.05);margin-bottom:14px;">
-      <div class="card-title" style="color:var(--gold);margin-bottom:8px;"><i class="ti ti-accessibility" style="vertical-align:-2px;margin-right:6px;"></i>Pre-Round Warm-Up, 5 min</div>
+      <div class="card-title" style="color:var(--gold);margin-bottom:8px;"><i class="ti ti-accessibility" style="vertical-align:-2px;margin-right:6px;"></i>Pre-Round Warm-Up · 5 min</div>
       <div style="display:flex;flex-direction:column;gap:6px;font-size:0.82rem;color:var(--muted);">
         <div><strong style="color:var(--cream);">1. Torso rotations, 30 sec.</strong> Club across shoulders. Rotate slowly, this is your swing motion.</div>
         <div><strong style="color:var(--cream);">2. Hip circles, 30 sec each.</strong> Hands on hips, big slow circles. Loose hips = better rotation.</div>
