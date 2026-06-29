@@ -2081,7 +2081,7 @@ async function _uploadAppHolePhotos(roundId) {
 }
 
 async function saveCompletedRound() {
-  const roundId = Date.now().toString();
+  const roundId = (self.crypto?.randomUUID?.() || Date.now().toString());
   const saveBtn = document.querySelector('#round-modal .btn-gold');
 
   // Upload hole photos before saving
@@ -2540,7 +2540,7 @@ async function saveFamilyRound(btn){
   const prevActive=activeKey;
   for(const pl of _famPlayers){
     const total=_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0);
-    const rec={ id:base+'-'+pl.key, date:_famRound.date||new Date().toISOString().split('T')[0], course:_famRound.course||'',
+    const rec={ id:(self.crypto?.randomUUID?.() || (base+'-'+pl.key)), date:_famRound.date||new Date().toISOString().split('T')[0], course:_famRound.course||'',
       total, par, holes:_famHoles.length, tee:_famRound.tee||null,
       round_type:_famRound.round_type||'regulation_18', rating:_famRound.rating||null, slope:_famRound.slope||null, family:true, game_mode:_famRound.game_mode||'fun',
       holeData:_famHoles.map(h=>({hole:h.hole,par:h.par,score:h.scores[pl.key]||0,yds:h.yds})),
@@ -2552,7 +2552,7 @@ async function saveFamilyRound(btn){
     // Kid leveling, celebrate any level-up from this round
     if(pl.isKid) checkKidLevelUp(pl.key, arr);
     // Cloud sync: main → user_rounds (if signed in); members → family_rounds (by guide link)
-    if(pl.key==='main'){ if(_authUser){ try{ await _sb.from('user_rounds').upsert({ ...rec, user_id:_authUser.id, guide_user_id:userId||null, date_played:rec.date }); }catch(e){} } }
+    if(pl.key==='main'){ if(_authUser){ try{ await _sb.from('user_rounds').upsert(roundToRow(rec)); }catch(e){} } }
     else { await syncMemberRound(pl.key, rec); }
   }
   activeKey=prevActive;
@@ -2791,7 +2791,7 @@ async function saveHandicapFix(id, btn){
   document.querySelector('#hc-rating')?.closest('[style*=fixed]')?.remove();
   renderMyGame(); showToast('Added to your handicap ✓');
 }
-function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); if(activeKey!=='main') deleteMemberRound(activeKey, id); renderMyGame(); renderHome(); showToast('Deleted'); }
+async function delRound(id) { if(!confirm('Delete this round?')) return; rounds=rounds.filter(r=>r.id!==id); persistRounds(); if(activeKey==='main'){ if(_authUser){ try{ await _sb.from('user_rounds').delete().eq('id', id); }catch(e){} } } else deleteMemberRound(activeKey, id); renderMyGame(); renderHome(); showToast('Deleted'); }
 
 // ── LOG A PAST ROUND (manual, no hole-by-hole) ───────────────────
 function _sheet(title, inner){
@@ -2827,7 +2827,7 @@ async function saveLoggedRound(btn){
   const par=parseInt(document.getElementById('lp-par').value)|| (holes===9?36:72);
   if(!total||total<18||total>200){ showToast('Enter a valid total score','error'); return; }
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
-  const r={ id:Date.now().toString(), date:date||new Date().toISOString().split('T')[0], course:course||'Logged round',
+  const r={ id:(self.crypto?.randomUUID?.() || Date.now().toString()), date:date||new Date().toISOString().split('T')[0], course:course||'Logged round',
     total, par, holes, round_type:holes===9?'nine':'regulation_18', holeData:[], notes:'Logged manually' };
   await persistRound(r);
   if(!_authUser) rounds=[...rounds.filter(x=>x.id!==r.id), r];
@@ -2888,7 +2888,7 @@ async function savePractice(btn){
   const mins=parseInt(document.getElementById('lpr-min').value)||null;
   if(btn){btn.disabled=true;btn.textContent='Saving…';}
   const label=(PRACTICE_TYPES.find(t=>t[0]===type)||[])[1]||'Practice';
-  const r={ id:Date.now().toString(), date:date||new Date().toISOString().split('T')[0], course:label, practice:true, ptype:type,
+  const r={ id:(self.crypto?.randomUUID?.() || Date.now().toString()), date:date||new Date().toISOString().split('T')[0], course:label, practice:true, ptype:type,
     total:0, par:0, holes:0, holeData:[], notes:'Practice'+(mins?` · ${mins} min`:'') };
   // Practice is local per-profile + member cloud sync
   try{ const k=RK(); const arr=JSON.parse(localStorage.getItem(k)||'[]'); arr.push(r); localStorage.setItem(k,JSON.stringify(arr)); }catch(e){}
@@ -2928,7 +2928,7 @@ async function loadRounds() {
   if (_authUser && activeKey==='main') {
     try {
       const { data } = await _sb.from('user_rounds').select('*').order('date_played', { ascending: false }).limit(50);
-      return data || [];
+      return (data || []).map(rowToRound);
     } catch(e) {}
   }
   // Member profile: pull from family_rounds (cloud) keyed by guide link + member key.
@@ -2948,14 +2948,55 @@ async function loadRounds() {
   try { return JSON.parse(localStorage.getItem(RK()) || '[]'); } catch(e) { return []; }
 }
 
+// ── user_rounds column mapping ───────────────────────────────────
+// The app's round object uses course/total/par/date/holeData/holes; the
+// user_rounds table uses course_name/total_score/course_par/date_played/holes
+// (jsonb hole array)/tee_color. These two helpers translate both directions so
+// signed-in main-profile rounds actually persist to the cloud (they used to
+// error on the column-name mismatch and silently fall back to localStorage).
+function roundToRow(r) {
+  return {
+    id: r.id,                                  // must be a UUID (we now generate them)
+    user_id: _authUser.id,
+    guide_user_id: userId || null,
+    member_key: 'main',
+    course_name: r.course || '',
+    course_par: (r.par != null ? r.par : null),
+    total_score: (r.total != null ? r.total : null),
+    score_vs_par: (r.total != null && r.par != null) ? (r.total - r.par) : null,
+    holes: r.holeData || [],                   // jsonb: the per-hole array
+    is_practice: !!r.practice,
+    round_type: r.round_type || null,
+    tee_color: r.tee || null,
+    rating: (r.rating != null ? r.rating : null),
+    slope: (r.slope != null ? r.slope : null),
+    reflection: r.notes ? { notes: r.notes } : null,
+    date_played: r.date || new Date().toISOString().split('T')[0],
+  };
+}
+function rowToRound(row) {
+  const holeData = Array.isArray(row.holes) ? row.holes : [];
+  return {
+    id: row.id,
+    date: row.date_played || '',
+    course: row.course_name || '',
+    total: (row.total_score != null ? row.total_score : null),
+    par: (row.course_par != null ? row.course_par : null),
+    holes: holeData.length,
+    holeData,
+    tee: row.tee_color || null,
+    round_type: row.round_type || null,
+    rating: (row.rating != null ? row.rating : null),
+    slope: (row.slope != null ? row.slope : null),
+    practice: !!row.is_practice,
+    notes: (row.reflection && row.reflection.notes) || '',
+  };
+}
+
 async function persistRound(r) {
   if (_authUser && activeKey==='main') {
     try {
-      await _sb.from('user_rounds').upsert({
-        ...r, id: r.id || undefined,
-        user_id: _authUser.id, guide_user_id: userId || null,
-        date_played: r.date || new Date().toISOString().split('T')[0],
-      });
+      await _sb.from('user_rounds').upsert(roundToRow(r));
       return;
     } catch(e) { console.warn('Supabase round save failed, falling back to localStorage', e); }
   }

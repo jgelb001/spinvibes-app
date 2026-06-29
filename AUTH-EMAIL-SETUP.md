@@ -48,7 +48,7 @@ If a new domain ever sends auth emails (e.g. spinvibes.com itself), add it to th
 Two separate Resend keys exist on purpose:
 
 - **Supabase SMTP key**: auth emails (magic links). Lives only in Supabase dashboard.
-- **Netlify key** (`RESEND_API_KEY` env var), `send-guide-email` function on spinvibes-golf.netlify.app (the "your app is ready" email from the wizard). Revoking one does not affect the other.
+- **Worker key** (`RESEND_API_KEY`), used by the `/send-guide-email` route on the Cloudflare Worker (the "your app is ready" email from the wizard). **Moved off Netlify 2026-06-29** — set it via `wrangler secret put RESEND_API_KEY` in `caddie-worker/`. Revoking one does not affect the other.
 
 ## 4. Related code (this repo)
 
