@@ -235,7 +235,7 @@
     <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email">
     <button class="btn-primary" style="width:100%;" id="auth-send-btn" onclick="submitMagicLink()">Send Magic Link</button>
     <div id="auth-msg" style="font-size:0.8rem;margin-top:12px;color:var(--muted);line-height:1.4;"></div>
-    <button onclick="closeAuthModal()" style="margin-top:14px;font-size:0.78rem;color:var(--muted);background:none;border:none;cursor:pointer;">Cancel</button>
+    <button id="auth-cancel-btn" onclick="closeAuthModal()" style="margin-top:14px;font-size:0.78rem;color:var(--muted);background:none;border:none;cursor:pointer;">Cancel</button>
   </div>
 </div>
 
@@ -3112,6 +3112,7 @@ function showAuthModal(title, sub) {
   document.getElementById('auth-modal-sub').textContent   = sub   || 'Enter your email and we\'ll send a magic link, no password needed. Your rounds sync across devices.';
   document.getElementById('auth-msg').textContent = '';
   document.getElementById('auth-email').value = '';
+  { const c = document.getElementById('auth-cancel-btn'); if (c) c.textContent = 'Cancel'; }
   document.getElementById('auth-modal').classList.add('on');
   setTimeout(() => document.getElementById('auth-email').focus(), 100);
 }
@@ -3130,6 +3131,7 @@ async function submitMagicLink() {
     if (error) throw error;
     document.getElementById('auth-msg').innerHTML = `<strong style="color:var(--gold);">Check your email!</strong><br>We sent a magic link to <strong>${email}</strong>. Tap it to sign in, the link works for 60 minutes.`;
     btn.textContent = 'Sent ✓';
+    { const c = document.getElementById('auth-cancel-btn'); if (c) c.textContent = 'Done'; }
   } catch(e) {
     document.getElementById('auth-msg').textContent = 'Something went wrong, ' + (e.message || 'try again.');
     btn.disabled = false; btn.textContent = 'Send Magic Link';
