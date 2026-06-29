@@ -232,7 +232,7 @@
     <div style="font-size:1.5rem;margin-bottom:6px;">⛳</div>
     <div style="font-weight:700;font-size:1.05rem;color:var(--cream);" id="auth-modal-title">Save your progress</div>
     <div style="font-size:0.82rem;color:var(--muted);margin-top:6px;line-height:1.5;" id="auth-modal-sub">Enter your email and we'll send a magic link, no password needed. Your rounds and stats will sync across devices.</div>
-    <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email">
+    <input type="email" id="auth-email" placeholder="your@email.com" autocomplete="email" onkeydown="if(event.key==='Enter'){event.preventDefault();submitMagicLink();}">
     <button class="btn-primary" style="width:100%;" id="auth-send-btn" onclick="submitMagicLink()">Send Magic Link</button>
     <div id="auth-msg" style="font-size:0.8rem;margin-top:12px;color:var(--muted);line-height:1.4;"></div>
     <button id="auth-cancel-btn" onclick="closeAuthModal()" style="margin-top:14px;font-size:0.78rem;color:var(--muted);background:none;border:none;cursor:pointer;">Cancel</button>
@@ -3059,6 +3059,7 @@ function showLoginScreen() {
     <div style="font-size:1rem;font-weight:700;color:var(--cream);margin-bottom:6px;">Welcome back</div>
     <div style="font-size:0.85rem;color:var(--muted);margin-bottom:28px;max-width:280px;line-height:1.5;">Enter your email to get a magic link and jump back into your app.</div>
     <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();submitLoginMagicLink();}"
       style="width:100%;max-width:320px;background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--cream);font-size:1rem;font-family:inherit;box-sizing:border-box;margin-bottom:12px;">
     <button id="login-send-btn" onclick="submitLoginMagicLink()"
       style="width:100%;max-width:320px;background:linear-gradient(135deg,var(--green),#1e4d2b);color:var(--gold);padding:16px;border:none;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;touch-action:manipulation;">
