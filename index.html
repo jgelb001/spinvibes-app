@@ -931,14 +931,17 @@ const DAILY_THOUGHTS = [
   { icon:'ti-package',     tag:'gear',     title:'Alignment sticks',             body:'The cheapest great training aid in golf, two sticks, under $15. Set ball position, foot line and target line all at once. Nothing teaches your eye to aim faster.' },
 ];
 const DAILY_THOUGHT_LEFTY = { icon:'ti-rotate-clockwise', tag:'lefty', title:'Lead wrist at impact', body:'As a lefty, your lead (right) wrist should be flat or slightly bowed at impact, not cupped. Feel like you\'re holding that angle through the ball; it\'s what kills the fat shots and flips.' };
-function dailyThoughtsHtml() {
+function dailyThoughtsHtml(opts) {
+  opts = opts || {};
   const pool = (profile && (profile.hand==='l'||profile.hand==='left')) ? DAILY_THOUGHTS.concat(DAILY_THOUGHT_LEFTY) : DAILY_THOUGHTS;
   if(!pool.length) return '';
   const seed = Math.floor(Date.now()/86400000);
   const i1 = seed % pool.length;
   const i2 = (seed + Math.floor(pool.length*0.6)) % pool.length;
-  const picks = i1===i2 ? [pool[i1]] : [pool[i1], pool[i2]];
-  return `<div class="sec-title">Today</div>` + picks.map(t=>`
+  // Kids see ONE clearly-labeled drill (less to wade through); adults get two.
+  const picks = opts.one ? [pool[i1]] : (i1===i2 ? [pool[i1]] : [pool[i1], pool[i2]]);
+  const label = opts.label || 'Today';
+  return `<div class="sec-title">${label}</div>` + picks.map(t=>`
     <div class="card" style="margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
         <i class="ti ${t.icon}" style="color:var(--cream);font-size:1.05rem;line-height:1;"></i>
@@ -1264,8 +1267,18 @@ function renderHome() {
       <div class="stat"><div class="stat-n">${rs.length}</div><div class="stat-l">Rounds</div></div>
     </div>`:''}
 
-    ${p.isKid?kidLevelHtml():''}
+    ${p.isKid ? `
+    ${kidLevelHtml()}
 
+    ${dailyThoughtsHtml({one:true, label:"Today's drill"})}
+
+    <div class="grid2">
+      <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Play a round</div><div class="qc-sub">Keep score hole by hole</div></div>
+      <div class="qc" onclick="goPage('shortgame')"><div class="qc-icon"><i class="ti ti-target"></i></div><div class="qc-title">Short game</div><div class="qc-sub">Chips &amp; putts</div></div>
+      <div class="qc" onclick="goPage('range')"><div class="qc-icon"><i class="ti ti-run"></i></div><div class="qc-title">Practice</div><div class="qc-sub">Today's session</div></div>
+      <div class="qc" onclick="goPage('caddie')"><div class="qc-icon"><i class="ti ti-message-circle"></i></div><div class="qc-title">Ask the caddie</div><div class="qc-sub">Tips &amp; clubs</div></div>
+    </div>
+    ` : `
     <div class="grid2">
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Start Round</div><div class="qc-sub">Track hole by hole</div></div>
       <div class="qc" onclick="goPage('caddie')"><div class="qc-icon"><i class="ti ti-message-circle"></i></div><div class="qc-title">Ask Caddie</div><div class="qc-sub">Club &amp; strategy</div></div>
@@ -1297,7 +1310,7 @@ function renderHome() {
       <i class="ti ti-chevron-right" style="color:var(--muted);margin-left:auto;flex-shrink:0;"></i>
     </div>` : ''}
 
-    ${!p.isKid?adultBadgesHtml():''}
+    ${adultBadgesHtml()}
 
     ${memoriesHtml()}
 
@@ -1305,6 +1318,7 @@ function renderHome() {
     ${renderBag()}
 
     ${comingSoonHtml()}
+    `}
   `;
   refreshResumeBanner();
 }
