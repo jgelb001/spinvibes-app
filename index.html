@@ -360,7 +360,10 @@ let _famIdx = 0, _famRound = {};
 // iOS DesignSystem identity set. Used everywhere a person is shown (pills, avatars,
 // family-round chips, kid level accent).
 const SV_GOLD = '#D4A843';                 // account holder, reserved
-const PLAYER_PALETTE = ['#378ADD','#D4537E','#7F77DD','#1D9E75','#E08D3C','#1C7C8A','#8A2D2A','#455A6B'];
+// Green is the SYSTEM colour (forest-ink anchor, kelly actions, skill markers) —
+// deliberately NOT in the per-person set, so no member (and no kid header) ever
+// renders as the generic "AI green." Each entry is a distinct, non-green identity.
+const PLAYER_PALETTE = ['#378ADD','#D4537E','#7F77DD','#E08D3C','#1C7C8A','#8A2D2A','#455A6B','#B0568C'];
 function playerColor(p){
   if(!p) return SV_GOLD;
   const key = p._key || p.key || 'main';
@@ -449,6 +452,16 @@ function buildFamily(){
   }
   mainProfile.members = mem;            // canonical source-of-truth list of raw members
   family = mem.map(memberToProfile);
+  // Guarantee unique _key per member. slug(name) alone collides for same/similar
+  // names ("Sam" & "Sam", "JJ" & "J.J."), which would merge their colors AND their
+  // round history. First occurrence keeps its key (existing data unaffected);
+  // later collisions get a stable -2/-3 suffix by roster order.
+  const _seenKeys = {};
+  family.forEach(f => {
+    let k = f._key, n = 1;
+    while (_seenKeys[k]) { k = f._key + '-' + (++n); }
+    _seenKeys[k] = true; f._key = k;
+  });
   activeKey = 'main';
   profile = mainProfile;
 }
