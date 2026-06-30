@@ -1155,11 +1155,18 @@ function openMemory(i){
   document.body.appendChild(ov);
 }
 
+// A round counts toward headline Best / Avg (and the handicap index) only if it's a
+// regulation 18 — not practice, not par-3 executive (par 54), not a 9-hole round.
+// Par-3 / 9-hole rounds still save and show in history; they just don't define your
+// "best", average, or index, so a 67 on a par-3 course can't masquerade as your best.
+function _statsEligible(r){ return !r.practice && (r.round_type||'regulation_18')==='regulation_18'; }
+
 function renderHome() {
   const p = profile;
   const goal = GOAL[p.goal]||p.goal||'Enjoy the Game';
   const rs   = rounds.filter(r=>!r.practice);
-  const best = rs.length ? Math.min(...rs.map(r=>r.total)) : null;
+  const reg  = rounds.filter(_statsEligible);      // regulation 18s only, for Best
+  const best = reg.length ? Math.min(...reg.map(r=>r.total)) : null;
   const last = rs.length ? rs[rs.length-1] : null;
   const weakMap = {full_swing:'Full Swing',short_game:'Short Game',putting:'Putting',course_mgmt:'Course Mgmt',mental:'Mental',fitness:'Fitness',consistency:'Consistency'};
   const wPills = (p.weaknesses||[]).map(w=>`<span class="pill">${weakMap[w]||w}</span>`).join('');
@@ -2686,13 +2693,14 @@ function handicapCardHtml(allRounds){
 // ── MY GAME ──────────────────────────────────────────────────────────
 function renderMyGame() {
   const rs=[...rounds].reverse(), scored=rs.filter(r=>!r.practice);
-  const best=scored.length?Math.min(...scored.map(r=>r.total)):null;
-  const avg=scored.length?Math.round(scored.reduce((a,r)=>a+r.total,0)/scored.length):null;
+  const reg=scored.filter(_statsEligible);          // regulation 18s only, for Best/Avg
+  const best=reg.length?Math.min(...reg.map(r=>r.total)):null;
+  const avg=reg.length?Math.round(reg.reduce((a,r)=>a+r.total,0)/reg.length):null;
   document.getElementById('pg-mygame').innerHTML=`
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:4px;">My game</div>
     ${scored.length?`<div class="stats-row" style="margin-top:8px;">
-      <div class="stat"><div class="stat-n">${best}</div><div class="stat-l">Best</div></div>
-      <div class="stat"><div class="stat-n">${avg}</div><div class="stat-l">Avg</div></div>
+      ${reg.length?`<div class="stat"><div class="stat-n">${best}</div><div class="stat-l">Best</div></div>
+      <div class="stat"><div class="stat-n">${avg}</div><div class="stat-l">Avg</div></div>`:''}
       <div class="stat"><div class="stat-n">${scored.length}</div><div class="stat-l">Rounds</div></div>
     </div>`:''}
     <button class="btn-gold" style="width:100%;margin-bottom:8px;" onclick="openRound()"><i class="ti ti-flag-2" style="vertical-align:-2px;margin-right:6px;"></i>Start a Round</button>
