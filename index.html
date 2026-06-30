@@ -536,7 +536,28 @@ function suggestClub(yds) {
     if (session) {
       // Return visitor with active session, handled below
     } else {
-      // Direct visit, no UUID, no session, show login screen
+      // No session + no link. Before falling back to the email login, check whether
+      // someone already signed in + unlocked on THIS device — if so, welcome them
+      // straight to their PIN (set in _launchApp, so only a profile that was actually
+      // opened here is remembered; browsing someone's demo link won't stick).
+      const last = localStorage.getItem('sv-last-user');
+      if (last && !String(last).startsWith('preview_')) {
+        userId = last;
+        const lastCached = localStorage.getItem('sv-profile-' + userId);
+        if (lastCached) { try { profile = JSON.parse(lastCached); bootApp(); } catch(e) {} }
+        try {
+          const rows = await fetchGuideUserById(userId);
+          if (rows?.[0]) {
+            profile = rows[0];
+            localStorage.setItem('sv-profile-' + userId, JSON.stringify(profile));
+            if (!lastCached) bootApp();
+            return;
+          }
+          if (!lastCached) { localStorage.removeItem('sv-last-user'); showLoginScreen(); }
+          return;
+        } catch(e) { if (!lastCached) showLoginScreen(); return; }
+      }
+      // Truly cold device, show the email login screen.
       showLoginScreen(); return;
     }
   }
@@ -608,6 +629,10 @@ function bootApp() {
 }
 
 async function _launchApp() {
+  // Remember this profile on this device so a future bare-domain visit goes
+  // straight to "Welcome back → PIN" instead of the email login. Set here (after
+  // PIN unlock / no-PIN launch), never on a profile you only previewed.
+  if (userId && !String(userId).startsWith('preview_')) { try { localStorage.setItem('sv-last-user', userId); } catch(e) {} }
   buildFamily();
   rounds = await loadRounds();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
@@ -3367,7 +3392,7 @@ function updateAuthUI() {
   if (_authUser) {
     btn.innerHTML = '<i class="ti ti-user-check"></i>';
     btn.title = _authUser.email;
-    btn.onclick = () => { if (confirm('Sign out?')) _sb.auth.signOut(); };
+    btn.onclick = () => { if (confirm('Sign out?')) { try { localStorage.removeItem('sv-last-user'); } catch(e) {} _sb.auth.signOut(); } };
   } else {
     btn.innerHTML = '<i class="ti ti-user-plus"></i>';
     btn.onclick = () => showAuthModal();
