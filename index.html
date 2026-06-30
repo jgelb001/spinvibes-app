@@ -3197,17 +3197,34 @@ const RK = ()=>'sv-app-rounds-'+(userId||'g')+(activeKey==='main'?'':'-'+activeK
 function _syncEligible(){ return userId && !String(userId).startsWith('preview_'); }
 async function syncMemberRound(memberKey, rec){
   if (!_syncEligible()) return;
+  const date = rec.date||new Date().toISOString().split('T')[0];
   try {
+    // Secure write via the definer RPC (scoped to the guide-link UUID). Falls
+    // back to the direct upsert only if the RPC isn't deployed yet (404).
+    const rp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/upsert_family_round`, {
+      method:'POST', headers:{ ...SB_HDR, Prefer:'return=minimal' },
+      body: JSON.stringify({ p_id:rec.id, p_guide_user_id:userId, p_member_key:memberKey, p_round:rec, p_date:date }),
+    });
+    if (rp.ok || rp.status===204) return;
+    if (rp.status!==404) return; // a real rejection (e.g. unknown family) — don't fall back
     await fetch(`${SUPABASE_URL}/rest/v1/family_rounds`, {
       method:'POST',
       headers:{ ...SB_HDR, Prefer:'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ id:rec.id, guide_user_id:userId, member_key:memberKey, round:rec, date_played:rec.date||new Date().toISOString().split('T')[0] }),
+      body: JSON.stringify({ id:rec.id, guide_user_id:userId, member_key:memberKey, round:rec, date_played:date }),
     });
   } catch(e) {}
 }
 async function deleteMemberRound(memberKey, id){
   if (!_syncEligible()) return;
-  try { await fetch(`${SUPABASE_URL}/rest/v1/family_rounds?id=eq.${encodeURIComponent(id)}&member_key=eq.${encodeURIComponent(memberKey)}`, { method:'DELETE', headers:{ ...SB_HDR, Prefer:'return=minimal' } }); } catch(e) {}
+  try {
+    const rp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_family_round`, {
+      method:'POST', headers:{ ...SB_HDR, Prefer:'return=minimal' },
+      body: JSON.stringify({ p_id:id, p_guide_user_id:userId, p_member_key:memberKey }),
+    });
+    if (rp.ok || rp.status===204) return;
+    if (rp.status!==404) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/family_rounds?id=eq.${encodeURIComponent(id)}&member_key=eq.${encodeURIComponent(memberKey)}`, { method:'DELETE', headers:{ ...SB_HDR, Prefer:'return=minimal' } });
+  } catch(e) {}
 }
 
 async function loadRounds() {
@@ -3221,14 +3238,22 @@ async function loadRounds() {
   // Member profile: pull from family_rounds (cloud) keyed by guide link + member key.
   if (activeKey!=='main' && _syncEligible()) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/family_rounds?guide_user_id=eq.${userId}&member_key=eq.${encodeURIComponent(activeKey)}&select=round&order=date_played.asc`, { headers: SB_HDR });
-      if (res.ok) {
-        const rows = await res.json();
-        if (Array.isArray(rows)) {
-          const cloud = rows.map(r=>r.round).filter(Boolean);
-          try { localStorage.setItem(RK(), JSON.stringify(cloud)); } catch(e) {} // cache for offline
-          return cloud;
-        }
+      // Secure read via the definer RPC; falls back to direct REST only if the
+      // RPC isn't deployed yet (so this is safe to ship before Phase 1 SQL).
+      let rows = null;
+      const rp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_family_rounds`, {
+        method:'POST', headers: SB_HDR,
+        body: JSON.stringify({ p_guide_user_id:userId, p_member_key:activeKey }),
+      });
+      if (rp.ok) rows = await rp.json();
+      else if (rp.status===404) {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/family_rounds?guide_user_id=eq.${userId}&member_key=eq.${encodeURIComponent(activeKey)}&select=round&order=date_played.asc`, { headers: SB_HDR });
+        if (res.ok) rows = await res.json();
+      }
+      if (Array.isArray(rows)) {
+        const cloud = rows.map(r=>r.round).filter(Boolean);
+        try { localStorage.setItem(RK(), JSON.stringify(cloud)); } catch(e) {} // cache for offline
+        return cloud;
       }
     } catch(e) {} // table missing / offline → fall through to local
   }
