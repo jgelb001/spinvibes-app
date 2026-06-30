@@ -28,6 +28,9 @@
       --green:   #249657;
       --green-b: #1E7F4A;
       --red:     #c0392b;
+      --brass:   #B08D4F;
+      --brass-l: #E6C97E;
+      --brass-d: #7A6033;
     }
     /* DARK MODE, toggled via .sv-dark on body (Fable ink-green family) */
     body.sv-dark {
@@ -44,6 +47,9 @@
       --green:   #2BAA65;
       --green-b: #249657;
       --red:     #d65b4a;
+      --brass:   #B08D4F;
+      --brass-l: #E6C97E;
+      --brass-d: #7A6033;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: var(--bg); color: var(--cream); font-family: 'Archivo', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; }
@@ -116,9 +122,22 @@
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .qc { background: var(--surf); border-radius: 14px; padding: 16px 14px; border: 1px solid var(--border); cursor: pointer; touch-action: manipulation; transition: background 0.1s; }
     .qc:active { background: var(--surf2); }
-    .qc-icon { font-size: 1.4rem; color: var(--green); margin-bottom: 6px; }
+    .qc-icon { font-size: 1.4rem; color: var(--cream); margin-bottom: 6px; }
     .qc-title { font-weight: 700; font-size: 0.85rem; color: var(--cream); }
     .qc-sub   { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+
+    /* ENAMEL MARKERS — mirrors iOS MarkerDisc: beveled antique-brass rim
+       (light top-left → dark bottom-right) + a MATTE enamel face with an inner
+       recess. No gloss. Color encodes the collectible. Three states below. */
+    .mk { border-radius: 50%; padding: 3.5px; flex-shrink: 0; display: inline-flex;
+      background: linear-gradient(150deg, var(--brass-l), var(--brass) 46%, var(--brass-d));
+      box-shadow: 0 3px 8px rgba(0,0,0,0.20); }
+    .mk-face { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.30), inset 0 -1px 2px rgba(255,255,255,0.18); }
+    .mk-face i { color: var(--brass-l); line-height: 1; filter: drop-shadow(0 1px 0 rgba(0,0,0,0.28)); }
+    .mk.locked { background: linear-gradient(150deg,#d9ddd7,#b9c0b8 46%,#9aa39c); box-shadow: 0 1px 3px rgba(0,0,0,0.10); }
+    .mk.locked .mk-face { background: var(--surf2) !important; box-shadow: inset 0 1px 2px rgba(0,0,0,0.10); }
+    .mk.locked .mk-face i { color: var(--muted); opacity: 0.55; filter: none; }
 
     /* CADDIE */
     /* Caddie fills the page area (between topbar and nav) so the input row is always visible above the nav */
@@ -333,9 +352,26 @@ let _roundMode = 'solo';          // 'solo' | 'family'
 let _famPlayers = [];             // [{key,name,isKid,color}] selected for the round
 let _famHoles = [];               // [{hole,par,yds,scores:{key:int}}]
 let _famIdx = 0, _famRound = {};
-// Player colors, main user gold, kids blue, others rotate
-const FAM_COLORS = ['#7F77DD','#1D9E75','#D4537E','#E08D3C'];
-function famPlayerColor(p, i){ if((p._key||'main')==='main') return '#c9a84c'; if(p.isKid) return '#3b82f6'; return FAM_COLORS[i % FAM_COLORS.length]; }
+// ── PLAYER IDENTITY COLORS ────────────────────────────────────────
+// Every family member gets a DISTINCT identity color. This is generalized for
+// ANY family that signs up, not hardcoded to one household: the account holder is
+// always gold (reserved), and each member is assigned a unique tone by their
+// position in the roster, so two kids (or two adults) never collide. Mirrors the
+// iOS DesignSystem identity set. Used everywhere a person is shown (pills, avatars,
+// family-round chips, kid level accent).
+const SV_GOLD = '#D4A843';                 // account holder, reserved
+const PLAYER_PALETTE = ['#378ADD','#D4537E','#7F77DD','#1D9E75','#E08D3C','#1C7C8A','#8A2D2A','#455A6B'];
+function playerColor(p){
+  if(!p) return SV_GOLD;
+  const key = p._key || p.key || 'main';
+  if(key==='main') return SV_GOLD;
+  let idx = (typeof family!=='undefined' && Array.isArray(family)) ? family.findIndex(f=>(f._key||'')===key) : -1;
+  if(idx<0) idx = 0;
+  return PLAYER_PALETTE[idx % PLAYER_PALETTE.length];
+}
+// Back-compat wrapper for family-round code (the index arg is now ignored; color
+// is deterministic per member so the whole app stays in agreement).
+function famPlayerColor(p, i){ return playerColor(p); }
 function allProfiles(){ return [mainProfile||profile, ...family]; }
 const DRAFT_KEY = () => 'sv-app-draft-' + (userId||'g');
 
@@ -421,8 +457,10 @@ function renderSwitcher(){
     const key = p._key || 'main';
     const on  = key === activeKey;
     const ini = (p.name||'?').trim().charAt(0).toUpperCase();
-    return `<button class="psw-pill${on?' on':''}" onclick="setActiveProfile('${key}')">
-      <span class="psw-av${p.isKid?' kid':''}">${ini}</span>${esc((p.name||'').split(' ')[0])}</button>`;
+    const col = playerColor(p);
+    const ring = on ? `box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px ${col};` : '';
+    return `<button class="psw-pill${on?' on':''}" style="${on?`border-color:${col};background:${col}18;`:''}" onclick="setActiveProfile('${key}')">
+      <span class="psw-av" style="background:${col};${ring}">${ini}</span>${esc((p.name||'').split(' ')[0])}</button>`;
   }).join('');
 }
 
@@ -903,11 +941,11 @@ function dailyThoughtsHtml() {
   return `<div class="sec-title">Today</div>` + picks.map(t=>`
     <div class="card" style="margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-        <i class="ti ${t.icon}" style="color:var(--green);font-size:1.05rem;line-height:1;"></i>
+        <i class="ti ${t.icon}" style="color:var(--cream);font-size:1.05rem;line-height:1;"></i>
         <div style="font-weight:700;font-size:0.9rem;color:var(--cream);">${t.title}</div>
       </div>
       <div class="card-body">${t.body}</div>
-      <div style="display:inline-block;margin-top:8px;font-size:0.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--green);background:rgba(36,150,87,0.1);border-radius:6px;padding:2px 7px;">${t.tag}</div>
+      <div style="display:inline-block;margin-top:8px;font-size:0.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--surf2);border-radius:6px;padding:2px 7px;">${t.tag}</div>
     </div>`).join('');
 }
 
@@ -972,16 +1010,26 @@ function kidLevelInfo(pts){
   const into = pts-floor, span = nextAt!=null?nextAt-floor:1;
   return { level:lvl, pts, into, span, nextAt, pct: nextAt!=null?Math.min(100,Math.round(into/span*100)):100 };
 }
+// Each marker carries its own enamel color (the collectible set reads as a colorful
+// crafted board, rendered with the iOS enamel-disc treatment).
 const KID_BADGES = [
-  { id:'first_round', name:'First Round',  icon:'ti-flag',         check:(r,p,l)=>r.length>=1 },
-  { id:'par_maker',   name:'Par Maker',    icon:'ti-target',       check:(r)=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<=h.par)) },
-  { id:'birdie',      name:'Birdie!',      icon:'ti-feather',      check:(r)=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<h.par)) },
-  { id:'family',      name:'Family Player',icon:'ti-users',        check:(r)=>r.some(x=>x.family) },
-  { id:'scrambler',   name:'Scrambler',    icon:'ti-rocket',       check:(r)=>r.some(x=>x.game_mode==='junior_scramble') },
-  { id:'regular',     name:'Regular',      icon:'ti-calendar',     check:(r)=>r.filter(x=>!x.practice).length>=5 },
-  { id:'veteran',     name:'Veteran',      icon:'ti-medal',        check:(r)=>r.filter(x=>!x.practice).length>=10 },
-  { id:'tour_bound',  name:'Tour Bound',   icon:'ti-trophy',       check:(r,p,l)=>l>=8 },
+  { id:'first_round', name:'First Round',  icon:'ti-flag',     color:'#1D9E75', check:(r,p,l)=>r.length>=1 },
+  { id:'par_maker',   name:'Par Maker',    icon:'ti-target',   color:'#639922', check:(r)=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<=h.par)) },
+  { id:'birdie',      name:'Birdie!',      icon:'ti-feather',  color:'#D85A30', check:(r)=>r.some(x=>(x.holeData||[]).some(h=>h.score!=null&&h.score<h.par)) },
+  { id:'family',      name:'Family Player',icon:'ti-users',    color:'#7F77DD', check:(r)=>r.some(x=>x.family) },
+  { id:'scrambler',   name:'Scrambler',    icon:'ti-rocket',   color:'#378ADD', check:(r)=>r.some(x=>x.game_mode==='junior_scramble') },
+  { id:'regular',     name:'Regular',      icon:'ti-calendar', color:'#BA7517', check:(r)=>r.filter(x=>!x.practice).length>=5 },
+  { id:'veteran',     name:'Veteran',      icon:'ti-medal',    color:'#D4537E', check:(r)=>r.filter(x=>!x.practice).length>=10 },
+  { id:'tour_bound',  name:'Tour Bound',   icon:'ti-trophy',   color:'#C4A058', check:(r,p,l)=>l>=8 },
 ];
+// Render one enamel marker disc (iOS MarkerDisc parity). state: 'earned' | 'locked'.
+function markerHtml(face, icon, state, size){
+  size = size || 50;
+  const locked = state==='locked';
+  return `<span class="mk${locked?' locked':''}" style="width:${size}px;height:${size}px;">
+    <span class="mk-face" style="${locked?'':`background:${face};`}"><i class="ti ${locked?'ti-lock':icon}" style="font-size:${Math.round(size*0.42)}px;"></i></span>
+  </span>`;
+}
 // Bonus points = check-ins + completed challenges + manual adjustments.
 function _kbKey(key){ return 'sv-kidbonus-'+(userId||'g')+'-'+key; }
 function getKidBonus(key){ try{ return parseInt(localStorage.getItem(_kbKey(key)))||0; }catch(e){ return 0; } }
@@ -1067,32 +1115,40 @@ function kidLevelHtml(){
   const chal = currentKidChallenge(key);
   const chalDone = chal && chal.verify(rds);
   const earned = KID_BADGES.filter(b=>b.check(rds,pts,info.level));
+  const earnedCount = earned.length;
   const badgeGrid = KID_BADGES.map(b=>{
     const on=earned.includes(b);
-    return `<div style="flex:0 0 auto;text-align:center;width:62px;opacity:${on?1:0.32};">
-      <div style="width:46px;height:46px;margin:0 auto 4px;border-radius:50%;background:${on?lv.color+'22':'var(--surf2)'};border:1.5px solid ${on?lv.color:'var(--border)'};display:flex;align-items:center;justify-content:center;"><i class="ti ${b.icon}" style="font-size:1.2rem;color:${on?lv.color:'var(--muted)'};"></i></div>
-      <div style="font-size:0.58rem;font-weight:700;color:${on?'var(--cream)':'var(--muted)'};line-height:1.1;">${b.name}</div>
+    return `<div style="flex:0 0 auto;text-align:center;width:60px;">
+      ${markerHtml(b.color, b.icon, on?'earned':'locked', 48)}
+      <div style="font-size:0.56rem;font-weight:700;color:${on?'var(--cream)':'var(--muted)'};line-height:1.1;margin-top:5px;">${b.name}</div>
     </div>`;
   }).join('');
-  return `<div class="card" style="margin-bottom:14px;border:1px solid ${lv.color}55;">
-    <div style="display:flex;align-items:center;gap:13px;">
-      <div style="position:relative;width:56px;height:56px;flex-shrink:0;">
-        <svg viewBox="0 0 56 56" style="width:56px;height:56px;transform:rotate(-90deg);"><circle cx="28" cy="28" r="25" fill="none" stroke="var(--surf2)" stroke-width="5"/><circle cx="28" cy="28" r="25" fill="none" stroke="${lv.color}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${Math.round(info.pct/100*157)} 157"/></svg>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><i class="ti ${lv.icon}" style="font-size:1.4rem;color:${lv.color};"></i></div>
+  const ring = Math.round(info.pct/100*163);
+  return `<div class="card" style="margin-bottom:14px;padding:16px;border:1px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div style="position:relative;width:64px;height:64px;flex-shrink:0;">
+        <svg viewBox="0 0 64 64" style="width:64px;height:64px;transform:rotate(-90deg);"><circle cx="32" cy="32" r="29" fill="none" stroke="var(--surf2)" stroke-width="4"/><circle cx="32" cy="32" r="29" fill="none" stroke="${lv.color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${ring} 182"/></svg>
+        <div style="position:absolute;inset:6px;">${markerHtml(lv.color, lv.icon, info.level>0?'earned':'locked', 52)}</div>
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:0.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);">Level ${info.level} · ${pts} pts</div>
-        <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.25rem;color:var(--cream);line-height:1.1;">${lv.name}</div>
+        <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.3rem;color:var(--cream);line-height:1.1;">${lv.name}</div>
         <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${info.nextAt!=null?`${info.nextAt-pts} pts to ${KID_LEVELS[info.level+1].name}`:'Max level, tournament ready!'}</div>
       </div>
       <button onclick="openKidLevelAdjust('${key}')" title="Grown-up controls" style="flex-shrink:0;align-self:flex-start;background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;touch-action:manipulation;"><i class="ti ti-adjustments-horizontal"></i></button>
     </div>
-    ${chal?`<div style="display:flex;align-items:center;gap:11px;margin-top:13px;padding:10px 12px;border-radius:12px;background:${chalDone?lv.color+'18':'var(--surf2)'};border:1px solid ${chalDone?lv.color:'var(--border)'};">
-      <i class="ti ${chalDone?'ti-circle-check-filled':'ti-target-arrow'}" style="font-size:1.3rem;color:${chalDone?lv.color:'var(--muted)'};flex-shrink:0;"></i>
-      <div style="flex:1;min-width:0;"><div style="font-size:0.58rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);">Challenge${chalDone?', ready!':''}</div><div style="font-size:0.86rem;font-weight:700;color:var(--cream);">${chal.title}</div><div style="font-size:0.72rem;color:var(--muted);">${chal.desc} · +${chal.pts}</div></div>
+    ${chal?`<div style="margin-top:14px;">
+      <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">Your goal right now</div>
+      <div style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:12px;background:${chalDone?lv.color+'18':'var(--surf2)'};border:1px solid ${chalDone?lv.color:'var(--border)'};">
+        <i class="ti ${chalDone?'ti-circle-check-filled':'ti-target-arrow'}" style="font-size:1.4rem;color:${chalDone?lv.color:'var(--muted)'};flex-shrink:0;"></i>
+        <div style="flex:1;min-width:0;"><div style="font-size:0.9rem;font-weight:800;color:var(--cream);">${chal.title}${chalDone?' ✓':''}</div><div style="font-size:0.74rem;color:var(--muted);">${chal.desc} · earns +${chal.pts}</div></div>
+      </div>
     </div>`:''}
-    <div style="display:flex;gap:8px;overflow-x:auto;margin-top:14px;padding-bottom:2px;">${badgeGrid}</div>
-    <button onclick="openKidCheckin('${key}')" ${kidCheckedInToday(key)?'disabled':''} style="width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid ${lv.color}55;background:${lv.color}12;color:var(--cream);font-weight:700;font-size:0.85rem;cursor:pointer;opacity:${kidCheckedInToday(key)?0.5:1};touch-action:manipulation;"><i class="ti ti-clipboard-check" style="vertical-align:-2px;margin-right:6px;"></i>${kidCheckedInToday(key)?'Checked in today ✓':'Daily check-in'}</button>
+    <div style="margin-top:16px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px;"><div style="font-size:0.62rem;font-weight:800;letter-spacing:0.5px;color:var(--muted);">Markers</div><div style="font-size:0.62rem;font-weight:700;color:var(--muted);">${earnedCount} of ${KID_BADGES.length} earned</div></div>
+      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;">${badgeGrid}</div>
+    </div>
+    <button onclick="openKidCheckin('${key}')" ${kidCheckedInToday(key)?'disabled':''} style="width:100%;margin-top:14px;padding:12px;border-radius:12px;border:1px solid ${lv.color}55;background:${lv.color}12;color:var(--cream);font-weight:700;font-size:0.85rem;cursor:pointer;opacity:${kidCheckedInToday(key)?0.5:1};touch-action:manipulation;"><i class="ti ti-clipboard-check" style="vertical-align:-2px;margin-right:6px;"></i>${kidCheckedInToday(key)?'Checked in today ✓':'Daily check-in'}</button>
   </div>`;
 }
 // Detect a level-up for a kid after a round saves, and celebrate.
@@ -1163,6 +1219,9 @@ function _statsEligible(r){ return !r.practice && (r.round_type||'regulation_18'
 
 function renderHome() {
   const p = profile;
+  const pcol  = playerColor(p);
+  const pfirst= (p.name||'').split(' ')[0];
+  const pini  = (p.name||'?').trim().charAt(0).toUpperCase();
   const goal = GOAL[p.goal]||p.goal||'Enjoy the Game';
   const rs   = rounds.filter(r=>!r.practice);
   const reg  = rounds.filter(_statsEligible);      // regulation 18s only, for Best
@@ -1182,10 +1241,15 @@ function renderHome() {
       </div>
     </div>
 
-    <div class="hero">
-      <div class="hero-hi">Welcome back</div>
-      <div class="hero-name">${p.name.toUpperCase()}</div>
-      <div class="hero-goal"><i class="ti ti-target" style="vertical-align:-2px;margin-right:4px;"></i>${goal}</div>
+    <div class="hero" style="border:1px solid ${pcol}55;">
+      <div style="display:flex;align-items:center;gap:13px;">
+        <span style="width:50px;height:50px;border-radius:50%;background:${pcol};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.5rem;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,0.10);">${pini}</span>
+        <div style="min-width:0;">
+          <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);font-weight:500;">Welcome back</div>
+          <div class="hero-name" style="text-transform:none;font-size:2rem;">${esc(pfirst)}</div>
+        </div>
+      </div>
+      <div class="hero-goal" style="margin-top:12px;"><i class="ti ti-target" style="vertical-align:-2px;margin-right:4px;"></i>${goal}</div>
       <div class="hero-pills">
         ${HAND[p.hand]?`<span class="pill">${HAND[p.hand]}</span>`:''}
         ${SKILL[p.skill]?`<span class="pill g">${SKILL[p.skill]}</span>`:''}
