@@ -372,6 +372,23 @@ function playerColor(p){
 // Back-compat wrapper for family-round code (the index arg is now ignored; color
 // is deterministic per member so the whole app stays in agreement).
 function famPlayerColor(p, i){ return playerColor(p); }
+// Darken a hex toward black by factor f (0..1). Used to build a deep, rich header
+// shade from a member's identity color so a kid's chrome is THEIRS, not the
+// generic forest-green that read as "AI green."
+function shade(hex, f){
+  const h=String(hex).replace('#',''); if(h.length<6) return hex;
+  const r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
+  const m=v=>Math.max(0,Math.min(255,Math.round(v*f)));
+  return `rgb(${m(r)},${m(g)},${m(b)})`;
+}
+// Deep header color for a profile: kids get a rich shade of their identity color;
+// everyone else keeps the forest-ink chrome.
+function headerColor(p){ return (p && p.isKid) ? shade(playerColor(p), 0.42) : '#13291C'; }
+// Tint the global top bar to match the active profile's header color.
+function applyChromeColor(){
+  const tb=document.querySelector('.topbar'); if(!tb) return;
+  tb.style.background = headerColor(profile);
+}
 function allProfiles(){ return [mainProfile||profile, ...family]; }
 const DRAFT_KEY = () => 'sv-app-draft-' + (userId||'g');
 
@@ -952,6 +969,71 @@ function dailyThoughtsHtml(opts) {
     </div>`).join('');
 }
 
+// ── KID DAILY DRILLS ─────────────────────────────────────────────
+// Ported from pga-coaching-reference/09-daily-kid-drills.md (single source with
+// iOS DrillPool.swift). ≤1-minute, no-gear drills a kid can do anywhere — the
+// errand ones are the loud, word-of-mouth flavor. Kid voice, lead/trail-safe
+// (never raw left/right). body912 is the 9–12 refinement (real club names, no
+// baby talk); younger kids get `body`. One drill surfaces per day, date-seeded so
+// the whole family sees the same one. `builds` keeps it purposeful, not busywork.
+const KID_DRILLS = [
+  { id:'dd_superhero_finish', fund:'balance', where:'anywhere', title:'Superhero finish', body:`Take a slow air-swing and freeze your finish like a superhero landing. Hold it, count one, two, three, and watch where the ball would have flown.`, body912:`Finish tall with your belt buckle facing the target and almost all your weight on your lead foot. Hold three seconds.`, parent:`Judge the pose together — a wobble means swing a little smoother.`, builds:`balance and a complete, committed finish.` },
+  { id:'dd_tin_soldier', fund:'balance', where:'anywhere', title:'Tin soldier', body:`Stand tall on your lead foot for a slow count of ten, then switch to your trail foot.`, parent:`Race to see who can stay stillest without grabbing anything.`, builds:`the steady lower body that keeps your swing on balance.` },
+  { id:'dd_checkout_balance', fund:'balance', where:'errand', title:'Checkout balance', body:`Waiting in line? Quietly balance on one foot, then the other, until it's your turn.`, builds:`quiet-body control under pressure — a busy line is your first gallery.` },
+  { id:'dd_toe_finish', fund:'balance', where:'anywhere', title:'Toe finish', body:`Make an air-swing and finish with your trail-foot shoelaces pointing at the target, up on your toe.`, builds:`weight moving fully to your lead side through the ball.` },
+  { id:'dd_smooth_count', fund:'tempo', where:'anywhere', title:'One and two', body:`Air-swing while you say it out loud: "ONE" going back, "and-TWO" coming through. Smooth and even, never rushed.`, builds:`a repeatable tempo so you don't swing too hard.` },
+  { id:'dd_wind_up_spring', fund:'tempo', where:'anywhere', title:'Wind up like a spring', body:`Cross your arms, turn your shoulders back like winding up a spring, then unwind through toward the target — then FIRE.`, builds:`turning your body to power the swing instead of just your arms.` },
+  { id:'dd_aisle_step_swing', fund:'tempo', where:'errand', title:'Aisle step-swing', body:`In a wide aisle: feet together, step your trail foot back as you wind up, step your lead foot down as you swing through.`, parent:`Call out "load… fire!" while they step.`, builds:`weight transfer from your trail side to your lead side.` },
+  { id:'dd_pause_top', fund:'tempo', where:'anywhere', title:'Pause at the top', body:`Air-swing to the top, freeze for two seconds, then swing down and through.`, body912:`Let your hips start the move down while your hands wait — that pause is where speed comes from.`, builds:`the right downswing order — your body leads, the club follows.` },
+  { id:'dd_handshake_grip', fund:'contact', where:'anywhere', title:'Handshake grip', body:`Hold out your lead hand and shake hands with an invisible club, then add your trail hand softly on top.`, builds:`a calm, neutral grip you can repeat every time.` },
+  { id:'dd_brush_the_floor', fund:'contact', where:'anywhere', title:'Brush the floor', body:`Make a low, slow swing and brush the floor where the ball would be, like sweeping crumbs forward.`, builds:`a clean low point so you catch the ball first, not fat.` },
+  { id:'dd_hands_ahead_freeze', fund:'contact', where:'anywhere', title:'Freeze at impact', body:`Mime the moment you hit the ball and freeze: hands slightly ahead, weight on your lead foot. Check it.`, body912:`Hands ahead of where the clubhead would be — that's shaft lean.`, builds:`ball-first contact with your hands leading.` },
+  { id:'dd_sock_catch', fund:'contact', where:'home', title:'Sock catch', body:`Toss a rolled-up sock straight up and catch it with your lead hand only, ten times.`, builds:`lead-hand control — the hand that steers the clubface.` },
+  { id:'dd_arms_on_chest', fund:'connection', where:'anywhere', title:'Arms on chest', body:`Fold your arms across your chest and turn back and through. Feel your arms and body move as one piece.`, builds:`staying connected so the club doesn't swing out and across.` },
+  { id:'dd_pencil_tuck', fund:'connection', where:'home', title:'Pencil tuck', body:`Tuck something light, a pencil or a spoon, under each upper arm against your chest and make slow turns without dropping them.`, builds:`arms and body moving together through the turn.` },
+  { id:'dd_wall_turn', fund:'connection', where:'anywhere', title:'Wall turn', body:`Stand one step from a wall, make a slow backswing turn, and stop before the wall. Turn, don't sway.`, builds:`rotating in place instead of sliding off the ball.` },
+  { id:'dd_underhand_target', fund:'shortgame', where:'anywhere', title:'Underhand to a spot', body:`Pick a spot on the floor. Toss a rolled sock underhand to land right on it. Closer each time.`, parent:`Pick the target for each other.`, builds:`the smooth pendulum feel of a chip, and distance control.` },
+  { id:'dd_table_roll', fund:'shortgame', where:'home', title:'Table roll', body:`Roll a coin or ball across a table to stop on a line, a seam or an edge. Not too hard, not too soft.`, builds:`putting distance feel — lag it close.` },
+  { id:'dd_clock_mime', fund:'shortgame', where:'anywhere', title:'Clock swings', body:`Air-swing three wedge lengths: a little "7 o'clock," a medium "9 o'clock," a full "11 o'clock." Same smooth speed each time.`, body912:`Short backswing, short shot. Same tempo, different length — that's how you control wedge distance.`, builds:`controlling how far your wedges fly.` },
+  { id:'dd_wall_hips', fund:'body', where:'anywhere', title:'Hips along the wall', body:`Stand with your trail hip near a wall. Turn your hips along the wall, not pushing into it.`, builds:`hip rotation instead of standing up at impact.` },
+  { id:'dd_trunk_twists', fund:'body', where:'anywhere', title:'Trunk twists', body:`Gentle, slow trunk twists, ten each way, to loosen up before you ever pick up a club.`, builds:`the turn your swing needs, warm and ready.` },
+  { id:'dd_wrist_set', fund:'body', where:'anywhere', title:'Wrist set', body:`Hold your lead arm out in front. Hinge your wrist up so your thumb points at the sky, then down. Ten times.`, builds:`setting the wrist hinge that loads the club.` },
+  { id:'dd_name_your_clubs', fund:'knowledge', where:'errand', title:'Name your clubs', body:`Name three clubs in your bag and what each one is for: driver is far, wedge is high and soft, putter rolls it in.`, parent:`Quiz them: "what club from 100 yards?"`, builds:`knowing your bag so you pick the right club on the course.` },
+  { id:'dd_pick_a_target', fund:'knowledge', where:'anywhere', title:'Pick a target', body:`Point at something far away, a tree, a sign, a cart. Make one air-swing aimed right at it.`, builds:`always swinging to a target, never at nothing.` },
+  { id:'dd_pre_shot_routine', fund:'knowledge', where:'anywhere', title:'Routine rehearsal', body:`Rehearse your routine: breathe, look at the target, one practice swing, then go. Same every time.`, builds:`a calm routine that travels to every shot.` },
+  { id:'dd_where_is_trouble', fund:'knowledge', where:'outside', title:'Find the safe spot', body:`Look at a field, park, or fairway. Say where you would not want to hit it, and where the safe spot is.`, builds:`course smarts — aim away from trouble.` },
+  { id:'dd_cart_posture', fund:'body', where:'errand', title:'Cart posture', body:`Push the cart with a tall, flat back and a little knee bend. That athletic stance is your golf posture.`, builds:`setup posture you can feel anywhere.` },
+  { id:'dd_tile_alignment', fund:'contact', where:'errand', title:'Tile alignment', body:`Line your feet up parallel to a line on the floor, a tile seam or a parking stripe, like aiming at a target.`, builds:`square alignment so you start the ball where you mean to.` },
+  { id:'dd_grocery_finish', fund:'balance', where:'errand', title:'Aisle finish', body:`One slow, quiet air-swing by the cart and hold the finish. Smooth and balanced, watch the ball fly down the aisle.`, parent:`This is the one they'll make you do too — hold the pose and judge each other.`, builds:`a balanced, complete swing in three seconds.` },
+];
+// Real-equipment "graduation" drills, unlocked as the habit builds (the prize).
+const KID_MILESTONES = [
+  { at:7,  title:'Backyard chip ladder', need:'a wedge, a few balls, and a towel or bucket', body:`Set a towel a few steps away and chip balls to land on it. Lead hand only for the first few to feel a flat wrist, then add the trail hand.` },
+  { at:14, title:'Putting gate',         need:'a putter, a ball, and two coins',           body:`Make a gate with two coins just wider than your putter, a few feet from a cup. Roll five in a row through it. Miss one, start the five over.` },
+  { at:30, title:'Range session',        need:'a small bucket at the range',               body:`Graduation day. Hit a bucket: start feet together for balance and tempo, then half swings for clean contact. Contact and balance matter, distance doesn't.` },
+];
+const DRILL_FUND_ICON = { balance:'ti-windmill', tempo:'ti-clock', contact:'ti-golf', connection:'ti-link', shortgame:'ti-target', body:'ti-stretching', knowledge:'ti-bulb' };
+const DRILL_WHERE = { anywhere:'Anywhere', errand:'On an errand', home:'At home', outside:'Outside' };
+// Today's kid drill, date-seeded (same seed as the iOS pool so a family matches).
+function kidDrillHtml(){
+  if(!KID_DRILLS.length) return '';
+  const age = parseInt(profile && profile.age) || 0;
+  const seed = Math.floor(Date.now()/86400000);
+  const d = KID_DRILLS[seed % KID_DRILLS.length];
+  const body = (age>=9 && d.body912) ? d.body912 : d.body;
+  const icon = DRILL_FUND_ICON[d.fund] || 'ti-golf';
+  return `<div class="sec-title">Today's drill</div>
+    <div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
+        <span class="mk" style="width:34px;height:34px;"><span class="mk-face" style="background:#455A6B;"><i class="ti ${icon}" style="font-size:15px;"></i></span></span>
+        <div style="flex:1;min-width:0;"><div style="font-weight:800;font-size:0.95rem;color:var(--cream);line-height:1.1;">${d.title}</div><div style="font-size:0.6rem;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin-top:2px;">${DRILL_WHERE[d.where]||'Anywhere'} · 1 minute</div></div>
+      </div>
+      <div class="card-body" style="color:var(--cream);">${body}</div>
+      ${d.parent?`<div style="margin-top:9px;display:flex;align-items:flex-start;gap:7px;font-size:0.76rem;color:var(--muted);"><i class="ti ti-users" style="font-size:0.95rem;line-height:1.3;flex-shrink:0;"></i><span><b style="color:var(--cream);font-weight:700;">With a grown-up:</b> ${d.parent}</span></div>`:''}
+      <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:0.74rem;color:var(--muted);"><i class="ti ti-arrow-up-right" style="vertical-align:-1px;margin-right:3px;"></i>Builds ${d.builds}</div>
+    </div>`;
+}
+
 // ── COMING AT LAUNCH (honesty list) ──────────────────────────────
 // Data-driven on purpose: as each feature ships, delete its line here and the
 // app stops advertising it. Never list something that already works in beta.
@@ -1244,9 +1326,9 @@ function renderHome() {
       </div>
     </div>
 
-    <div class="hero" style="border:1px solid ${pcol}55;">
+    <div class="hero" style="background:${p.isKid?headerColor(p):'var(--ink)'};border:1px solid ${pcol}55;">
       <div style="display:flex;align-items:center;gap:13px;">
-        <span style="width:50px;height:50px;border-radius:50%;background:${pcol};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.5rem;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,0.10);">${pini}</span>
+        <span style="width:50px;height:50px;border-radius:50%;background:${pcol};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.5rem;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,0.14);">${pini}</span>
         <div style="min-width:0;">
           <div style="font-size:0.78rem;color:rgba(255,255,255,0.55);font-weight:500;">Welcome back</div>
           <div class="hero-name" style="text-transform:none;font-size:2rem;">${esc(pfirst)}</div>
@@ -1270,7 +1352,7 @@ function renderHome() {
     ${p.isKid ? `
     ${kidLevelHtml()}
 
-    ${dailyThoughtsHtml({one:true, label:"Today's drill"})}
+    ${kidDrillHtml()}
 
     <div class="grid2">
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Play a round</div><div class="qc-sub">Keep score hole by hole</div></div>
@@ -1321,6 +1403,7 @@ function renderHome() {
     `}
   `;
   refreshResumeBanner();
+  applyChromeColor();
 }
 
 function renderBag() {
