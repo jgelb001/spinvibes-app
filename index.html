@@ -1927,6 +1927,8 @@ async function selectSetupCourse(id, name, loc, course) {
     if(st)st.textContent='';
     const sd=document.getElementById('rs-course-selected');
     if(sd){sd.style.display='';document.getElementById('rs-cname').textContent=name+(course?', '+course:'');document.getElementById('rs-csub').textContent=loc||'';}
+    // You picked a course — hide the scan path so there's only ONE tee selector.
+    const sw=document.getElementById('rs-scan-wrap'); if(sw)sw.style.display='none';
     // Tee selector
     const tees=d.course.allTees||[];
     const tw=document.getElementById('rs-tee-wrap'), tr=document.getElementById('rs-tees');
@@ -1949,6 +1951,7 @@ function clearCourseSelection() {
   window._setupCourse=null; window._setupTee=null;
   const sd=document.getElementById('rs-course-selected'); if(sd)sd.style.display='none';
   const tw=document.getElementById('rs-tee-wrap'); if(tw)tw.style.display='none';
+  const sw=document.getElementById('rs-scan-wrap'); if(sw)sw.style.display='';  // restore the scan path
   const st=document.getElementById('rs-status'); if(st)st.textContent='';
 }
 function startRound(quick) {
@@ -2812,12 +2815,31 @@ function calcHandicapIndex(allRounds){
   const index = Math.round(avg*0.96*10)/10;
   return { index, differentials:last20, eligibleCount:eligible.length, usedCount:count };
 }
+// Relative handicap: a usable estimate BEFORE any course is rated. Treats par as
+// the rating and 113 (neutral) as the slope, so the differential is simply
+// score − par. Same best-N-of-last-20 × 0.96 WHS math, just un-rated. Honest label
+// ("relative") so it never masquerades as an official index.
+function calcRelativeHandicap(allRounds){
+  const eligible = allRounds
+    .filter(r=>!r.practice && (r.round_type||'regulation_18')==='regulation_18' && r.total && (r.holes||18)>=18)
+    .map(r=>({date:r.date||'', score:r.total, diff:Math.round((r.total-(r.par||72))*10)/10, course:r.course}))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+  if(!eligible.length) return null;
+  const last20 = eligible.slice(-20);
+  const count = _whsBestCount(last20.length);
+  const best = [...last20].sort((a,b)=>a.diff-b.diff).slice(0,count);
+  const avg = best.reduce((s,d)=>s+d.diff,0)/best.length;
+  const index = Math.round(avg*0.96*10)/10;
+  return { index, differentials:last20, eligibleCount:eligible.length, usedCount:count, relative:true };
+}
 function handicapCardHtml(allRounds){
-  const hc = calcHandicapIndex(allRounds);
+  let hc = calcHandicapIndex(allRounds);
+  let relative = false;
+  if(!hc){ hc = calcRelativeHandicap(allRounds); relative = !!hc; }
   if(!hc){
     const hasReg = allRounds.some(r=>!r.practice && (r.round_type||'regulation_18')==='regulation_18');
     if(!hasReg) return '';
-    return `<div class="card" style="margin-bottom:14px;"><div class="card-title">Handicap index</div><div class="card-body">Play a regulation 18 at a rated course (search and pick a course + tee) to start building your WHS index.</div></div>`;
+    return `<div class="card" style="margin-bottom:14px;"><div class="card-title">Handicap</div><div class="card-body">Log a regulation 18 to see your handicap. Pick a rated course (search + tee) and it becomes an official WHS estimate.</div></div>`;
   }
   const recent = hc.differentials.slice(-8);
   const diffs = recent.map(d=>d.diff);
@@ -2831,10 +2853,10 @@ function handicapCardHtml(allRounds){
   return `<div class="card" style="margin-bottom:14px;">
     <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:10px;">
       <div>
-        <div style="font-size:0.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Handicap index</div>
+        <div style="font-size:0.6rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">${relative?'Handicap':'Handicap index'}</div>
         <div style="display:flex;align-items:baseline;gap:6px;">
           <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2.6rem;color:var(--cream);line-height:1;">${hc.index.toFixed(1)}</div>
-          <div style="font-size:0.7rem;color:var(--muted);">est. WHS</div>
+          <div style="font-size:0.7rem;color:var(--muted);">${relative?'relative':'est. WHS'}</div>
         </div>
       </div>
       <div style="text-align:right;">
@@ -2846,8 +2868,9 @@ function handicapCardHtml(allRounds){
     <div style="display:flex;align-items:flex-end;gap:3px;height:30px;">${bars}</div>
     <div style="display:flex;justify-content:space-between;margin-top:4px;">
       <div style="font-size:0.55rem;color:var(--muted);">${(recent[0]?.date||'').slice(5)}</div>
-      <div style="font-size:0.55rem;color:var(--green);font-weight:600;">recent → lower is better</div>
+      <div style="font-size:0.55rem;color:var(--muted);font-weight:600;">recent → lower is better</div>
     </div>
+    ${relative?`<div style="font-size:0.68rem;color:var(--muted);line-height:1.45;margin-top:10px;padding-top:9px;border-top:1px solid var(--border);">A relative handicap from your scores against par. Play a rated course (search a course + pick a tee, or add rating &amp; slope to a round) and it upgrades to an official WHS estimate.</div>`:''}
   </div>`;
 }
 
@@ -2979,6 +3002,20 @@ function _sheet(title, inner){
 function openLogPast(){
   const today=new Date().toISOString().split('T')[0];
   _sheet('Log a past round', `
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;line-height:1.5;">Played a casual round and kept score on paper? Snap the filled-in card and it reads your scores in.</div>
+    <input type="file" id="lp-photo" accept="image/*" capture="environment" style="display:none;" onchange="scanFilledSelected(this)">
+    <button type="button" onclick="document.getElementById('lp-photo').click()" style="width:100%;background:var(--surf2);border:1px dashed rgba(176,141,79,0.55);border-radius:12px;padding:16px;color:var(--cream);font-size:0.88rem;font-weight:700;cursor:pointer;touch-action:manipulation;"><i class="ti ti-camera" style="vertical-align:-2px;margin-right:6px;color:var(--brass);"></i>Scan a completed scorecard</button>
+    <div id="lp-photo-preview" style="display:none;margin-top:10px;"><img id="lp-preview-img" style="width:100%;border-radius:10px;border:1px solid var(--border);"></div>
+    <button id="lp-parse-btn" type="button" onclick="parseFilledScorecard(this)" style="display:none;width:100%;margin-top:10px;" class="btn-gold">Read my scores →</button>
+    <div id="lp-parse-status" style="text-align:center;font-size:0.78rem;color:var(--muted);margin-top:8px;"></div>
+
+    <div id="lp-review"></div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:18px 0 12px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <div style="font-size:0.62rem;color:var(--muted);letter-spacing:1px;">OR ENTER IT BY HAND</div>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
     <label class="ml">Course</label><input id="lp-course" class="mi" type="text" placeholder="e.g. Pebble Beach">
     <label class="ml">Date</label><input id="lp-date" class="mi" type="date" value="${today}">
     <div style="display:flex;gap:10px;">
@@ -2987,6 +3024,87 @@ function openLogPast(){
       <div style="flex:1;"><label class="ml">Par</label><input id="lp-par" class="mi" type="number" inputmode="numeric" placeholder="72"></div>
     </div>
     <button class="btn-gold" style="width:100%;margin-top:6px;" onclick="saveLoggedRound(this)">Save round ✓</button>`);
+}
+// ── SCAN A COMPLETED SCORECARD → log a finished round ────────────
+let _filledPhoto = null;
+function scanFilledSelected(input){
+  const f=input.files[0]; if(!f) return;
+  _filledPhoto=f;
+  const rd=new FileReader();
+  rd.onload=e=>{ document.getElementById('lp-preview-img').src=e.target.result; document.getElementById('lp-photo-preview').style.display='block'; document.getElementById('lp-parse-btn').style.display='block'; document.getElementById('lp-parse-status').textContent=''; };
+  rd.readAsDataURL(f);
+}
+async function parseFilledScorecard(btn){
+  if(!_filledPhoto) return;
+  const st=document.getElementById('lp-parse-status');
+  btn.disabled=true; btn.textContent='Reading your scorecard…'; if(st)st.textContent='';
+  try{
+    const resized=await _resizeImg(await _fileToDataUrl(_filledPhoto),1400);
+    const base64=resized.split(',')[1];
+    const r=await fetch(CADDIE_URL+'/parse-scorecard',{method:'POST',headers:{'Content-Type':'application/json','X-SpinVibes-Token':WORKER_SECRET},body:JSON.stringify({image:base64,mediaType:'image/jpeg',teeColor:'White',includeScores:true})});
+    const d=await r.json();
+    if(!r.ok||d.error||!d.course){ if(st)st.textContent=d.error||'Could not read the card, try a clearer photo'; btn.disabled=false; btn.textContent='Read my scores →'; return; }
+    renderFilledReview(d.course);
+    document.getElementById('lp-parse-btn').style.display='none';
+    document.getElementById('lp-photo-preview').style.display='none';
+  }catch(e){ if(st)st.textContent='Network error, try again'; btn.disabled=false; btn.textContent='Read my scores →'; }
+}
+function renderFilledReview(c){
+  const pars=Array.isArray(c.holePars)?c.holePars:[];
+  const scores=Array.isArray(c.scores)?c.scores:[];
+  const n=Math.max(pars.length, scores.length, c.holes||18) || 18;
+  const today=new Date().toISOString().split('T')[0];
+  let rows='';
+  for(let i=0;i<n;i++){
+    rows+=`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);">
+      <span style="width:48px;font-size:0.78rem;color:var(--muted);">Hole ${i+1}</span>
+      <div style="flex:1;display:flex;align-items:center;gap:5px;"><span style="font-size:0.66rem;color:var(--muted);">par</span><input type="number" inputmode="numeric" id="fr-par-${i}" value="${pars[i]!=null?pars[i]:''}" min="2" max="7" style="width:48px;text-align:center;background:var(--surf2);border:1px solid var(--border);border-radius:8px;color:var(--cream);padding:6px;"></div>
+      <div style="flex:1;display:flex;align-items:center;gap:5px;"><span style="font-size:0.66rem;color:var(--muted);">score</span><input type="number" inputmode="numeric" id="fr-score-${i}" value="${scores[i]!=null?scores[i]:''}" min="1" max="15" oninput="_frTotal()" style="width:52px;text-align:center;background:var(--surf2);border:1px solid var(--brass);border-radius:8px;color:var(--cream);padding:6px;font-weight:700;"></div>
+    </div>`;
+  }
+  const wrap=document.getElementById('lp-review');
+  wrap.innerHTML=`<div class="card" style="margin-top:14px;border:1px solid var(--brass);">
+    <div style="font-weight:800;font-size:0.95rem;color:var(--cream);margin-bottom:8px;"><i class="ti ti-checks" style="vertical-align:-2px;margin-right:5px;color:var(--brass);"></i>Check what we read</div>
+    <label class="ml">Course</label><input id="fr-course" class="mi" type="text" value="${esc(c.name||'')}" placeholder="Course name">
+    <label class="ml">Date played</label><input id="fr-date" class="mi" type="date" value="${today}">
+    <label class="ml" style="margin-top:4px;">Holes — fix any the camera misread</label>
+    <div style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;">${rows}</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;font-weight:700;">
+      <span style="font-size:0.8rem;color:var(--muted);">Total</span>
+      <span style="font-size:1.3rem;color:var(--cream);" id="fr-total">—</span>
+    </div>
+    <button class="btn-gold" style="width:100%;margin-top:12px;" onclick="saveScannedRound(this)">Save this round ✓</button>
+  </div>`;
+  _frTotal();
+  wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function _frN(){ let i=0; while(document.getElementById('fr-score-'+i)) i++; return i; }
+function _frTotal(){
+  let t=0, any=false;
+  for(let i=0;i<_frN();i++){ const v=parseInt(document.getElementById('fr-score-'+i)?.value); if(v>0){ t+=v; any=true; } }
+  const el=document.getElementById('fr-total'); if(el) el.textContent=any?t:'—';
+}
+async function saveScannedRound(btn){
+  const n=_frN();
+  const holeData=[]; let total=0, par=0, counted=0;
+  for(let i=0;i<n;i++){
+    const sc=parseInt(document.getElementById('fr-score-'+i)?.value);
+    const pr=parseInt(document.getElementById('fr-par-'+i)?.value)||4;
+    if(sc>0){ holeData.push({hole:i+1, par:pr, score:sc}); total+=sc; par+=pr; counted++; }
+  }
+  if(counted<1){ showToast('Add at least one hole score','error'); return; }
+  const course=document.getElementById('fr-course').value.trim()||'Logged round';
+  const date=document.getElementById('fr-date').value||new Date().toISOString().split('T')[0];
+  const holes=counted>=18?18:(counted>=9?9:counted);
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  const r={ id:(self.crypto?.randomUUID?.()||Date.now().toString()), date, course, total, par, holes,
+    round_type: counted>=18?'regulation_18':(counted>=9?'nine':'partial'), holeData, notes:'Imported from a scorecard photo' };
+  await persistRound(r);
+  if(!_authUser) rounds=[...rounds.filter(x=>x.id!==r.id), r];
+  if(activeKey!=='main') await syncMemberRound(activeKey, r);
+  if(profile.isKid) checkKidLevelUp(activeKey, rounds);
+  document.getElementById('fr-course')?.closest('[style*=fixed]')?.remove();
+  rounds=await loadRounds(); renderMyGame(); renderHome(); showToast('Round imported ✓');
 }
 async function saveLoggedRound(btn){
   const course=document.getElementById('lp-course').value.trim();
