@@ -1392,7 +1392,9 @@ function renderHome() {
 
     ${kidDrillHtml()}
 
-    <!-- kid section (Clubhouse) — prototype link-out; avatar sync lands with the real integration -->
+    <!-- kid section (Clubhouse) — prototype link-out, JEREMY'S FAMILY ONLY while in beta;
+         open to everyone once the kid section is launch-ready (post-COPPA counsel) -->
+    ${userId==='a1aaaaaa-0000-4000-8000-000000000001' ? `
     <div class="card" onclick="window.open('https://jgelb001.github.io/spinvibes-kid/','_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
       <span class="mk" style="width:52px;height:52px;">
         <span class="mk-face" style="background:#F2A0BC;">
@@ -1405,6 +1407,7 @@ function renderHome() {
       </div>
       <i class="ti ti-chevron-right" style="color:#B08D4F;margin-left:auto;flex-shrink:0;"></i>
     </div>
+    `:''}
 
     <div class="grid2">
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Play a round</div><div class="qc-sub">Keep score hole by hole</div></div>
