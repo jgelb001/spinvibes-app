@@ -1455,7 +1455,7 @@ function renderHome() {
     <!-- kid section (Clubhouse) — prototype link-out, JEREMY'S FAMILY ONLY while in beta;
          open to everyone once the kid section is launch-ready (post-COPPA counsel) -->
     ${userId==='a1aaaaaa-0000-4000-8000-000000000001' ? `
-    <div class="card" onclick="window.open('https://jgelb001.github.io/spinvibes-kid/?kid='+encodeURIComponent(activeKey)+'&nick='+encodeURIComponent('${esc(pfirst)}')+'&age='+encodeURIComponent('${p.age||''}')+'&hand='+encodeURIComponent('${p.hand||''}'),'_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
+    <div class="card" onclick="window.open('https://jgelb001.github.io/spinvibes-kid/?kid='+encodeURIComponent(activeKey)+'&nick='+encodeURIComponent('${esc(pfirst)}')+'&age='+encodeURIComponent('${p.age||''}')+'&hand='+encodeURIComponent('${p.hand||''}')+'&u='+encodeURIComponent(userId),'_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
       <span class="mk" style="width:52px;height:52px;">
         <span class="mk-face" style="background:#F2A0BC;">
           <svg width="30" height="30" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#F4F1E8" stroke="#13291C" stroke-width="2.5"/><circle cx="15" cy="17" r="2.4" fill="#13291C"/><circle cx="25" cy="17" r="2.4" fill="#13291C"/><path d="M13.5 23 Q20 29.5 26.5 23" stroke="#13291C" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
