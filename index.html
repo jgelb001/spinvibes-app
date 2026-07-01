@@ -1392,6 +1392,20 @@ function renderHome() {
 
     ${kidDrillHtml()}
 
+    <!-- kid section (Clubhouse) — prototype link-out; avatar sync lands with the real integration -->
+    <div class="card" onclick="window.open('https://jgelb001.github.io/spinvibes-kid/','_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
+      <span class="mk" style="width:52px;height:52px;">
+        <span class="mk-face" style="background:#F2A0BC;">
+          <svg width="30" height="30" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#F4F1E8" stroke="#13291C" stroke-width="2.5"/><circle cx="15" cy="17" r="2.4" fill="#13291C"/><circle cx="25" cy="17" r="2.4" fill="#13291C"/><path d="M13.5 23 Q20 29.5 26.5 23" stroke="#13291C" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+        </span>
+      </span>
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:0.9rem;font-weight:800;color:#13291C;">Your Clubhouse</div>
+        <div style="font-size:0.76rem;color:#7A6033;margin-top:2px;">Your ball is waiting — markers to go get!</div>
+      </div>
+      <i class="ti ti-chevron-right" style="color:#B08D4F;margin-left:auto;flex-shrink:0;"></i>
+    </div>
+
     <div class="grid2">
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Play a round</div><div class="qc-sub">Keep score hole by hole</div></div>
       <div class="qc" onclick="goPage('shortgame')"><div class="qc-icon"><i class="ti ti-target"></i></div><div class="qc-title">Short game</div><div class="qc-sub">Chips &amp; putts</div></div>
