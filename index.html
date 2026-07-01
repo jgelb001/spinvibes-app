@@ -588,8 +588,11 @@ function suggestClub(yds) {
     if (rows?.[0]) {
       profile = rows[0];
       localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile));
-      // If authed and profile not yet linked, link now
-      if (session && !profile.auth_id) linkAuthToProfile(session.user.id);
+      // If authed and profile not yet linked, link ONLY if this device explicitly
+      // asked to claim THIS profile (FIX 2026-07-01, open-bug #1: signing in used
+      // to claim whatever unclaimed profile was on screen — e.g. someone else's
+      // browsed ?u= demo link. Claim now requires the "Save your progress" tap.)
+      if (session && !profile.auth_id && _claimIntended()) linkAuthToProfile(session.user.id);
       if (!cached) bootApp(); else renderHome();
     } else if (!cached) { showErr("Couldn't find your profile."); }
   } catch(e) { if (!cached) showErr("No signal, check connection."); }
@@ -598,7 +601,7 @@ function suggestClub(yds) {
   _sb.auth.onAuthStateChange(async (event, sess) => {
     if (event === 'SIGNED_IN' && sess) {
       _authUser = sess.user;
-      if (userId && !userId.startsWith('preview_') && !profile?.auth_id) {
+      if (userId && !userId.startsWith('preview_') && !profile?.auth_id && _claimIntended()) {
         await linkAuthToProfile(sess.user.id);
       }
       await migrateLocalRoundsToSupabase();
@@ -1053,13 +1056,63 @@ const KID_MILESTONES = [
 const DRILL_FUND_ICON = { balance:'ti-windmill', tempo:'ti-clock', contact:'ti-golf', connection:'ti-link', shortgame:'ti-target', body:'ti-stretching', knowledge:'ti-bulb' };
 const DRILL_WHERE = { anywhere:'Anywhere', errand:'On an errand', home:'At home', outside:'Outside' };
 // Today's kid drill, date-seeded (same seed as the iOS pool so a family matches).
+// SESSION 51: the "I did it" 7/14/30 milestone counter is now WIRED on web —
+// same backend as iOS (record_daily_drill / get_drill_progress RPCs, session 47).
+function _todayISO(){ return new Date().toISOString().slice(0,10); }
+function _drillProgKey(){ return 'sv-drillprog-'+(userId||'g')+'-'+activeKey; }
+function _drillProgCache(){ try{ return JSON.parse(localStorage.getItem(_drillProgKey()))||{count:0,last_day:null}; }catch(e){ return {count:0,last_day:null}; } }
+function _setDrillProg(p){ try{ localStorage.setItem(_drillProgKey(), JSON.stringify(p)); }catch(e){} }
+function _todaysKidDrill(){ return KID_DRILLS[Math.floor(Date.now()/86400000) % KID_DRILLS.length]; }
+async function recordKidDrill(who){
+  const cache=_drillProgCache();
+  if(cache.last_day===_todayISO()){ showToast("Already counted today — nice!"); return; }
+  // Optimistic local win first (the kid ALWAYS gets the celebration, even offline).
+  _setDrillProg({ count:(cache.count||0)+1, last_day:_todayISO(), ts:Date.now() });
+  showToast(who==='parent' ? 'Team effort — love it!' : 'You did it yourself — strong!');
+  renderHome();
+  if(userId && !userId.startsWith('preview_')){
+    try{
+      const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/record_daily_drill`,{ method:'POST', headers:SB_HDR,
+        body: JSON.stringify({ p_guide_user_id:userId, p_member_slug:activeKey, p_drill_id:_todaysKidDrill().id, p_source:who==='parent'?'parent':'kid' }) });
+      if(r.ok){
+        const res=await r.json();
+        _setDrillProg({ count:res.count, last_day:_todayISO(), ts:Date.now() });
+        (res.new_markers||[]).forEach(m=>setTimeout(()=>showToast(`⛳ Marker earned — ${m.threshold} drills! It's on your board.`),900));
+        renderHome();
+      }
+    }catch(e){ /* offline: local count already celebrated; server catches up next tap */ }
+  }
+}
+async function refreshDrillProgress(){
+  if(!userId || userId.startsWith('preview_')) return;
+  const c=_drillProgCache();
+  if(c.ts && Date.now()-c.ts<60000) return; // throttle: at most 1 fetch/min
+  try{
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_drill_progress`,{ method:'POST', headers:SB_HDR,
+      body: JSON.stringify({ p_guide_user_id:userId, p_member_slug:activeKey }) });
+    if(!r.ok) return;
+    const p=await r.json();
+    const changed=(p.count||0)!==(c.count||0) || (p.last_day||null)!==(c.last_day||null);
+    _setDrillProg({ count:p.count||0, last_day:p.last_day||null, ts:Date.now() });
+    if(changed) renderHome();
+  }catch(e){}
+}
 function kidDrillHtml(){
   if(!KID_DRILLS.length) return '';
   const age = parseInt(profile && profile.age) || 0;
-  const seed = Math.floor(Date.now()/86400000);
-  const d = KID_DRILLS[seed % KID_DRILLS.length];
+  const d = _todaysKidDrill();
   const body = (age>=9 && d.body912) ? d.body912 : d.body;
   const icon = DRILL_FUND_ICON[d.fund] || 'ti-golf';
+  const prog = _drillProgCache();
+  const doneToday = prog.last_day===_todayISO();
+  const ladder = [7,14,30].map(t=>{
+    const got=(prog.count||0)>=t;
+    return `<div style="flex:1;text-align:center;">
+      <span class="mk ${got?'':'locked'}" style="width:40px;height:40px;"><span class="mk-face" style="${got?'background:#455A6B;':''}"><b style="font-family:'Archivo',sans-serif;font-size:0.78rem;color:${got?'var(--brass-l)':'var(--muted)'};">${t}</b></span></span>
+      <div style="font-size:0.62rem;font-weight:700;color:var(--muted);margin-top:3px;">${Math.min(prog.count||0,t)}/${t}</div>
+    </div>`;
+  }).join('');
+  setTimeout(refreshDrillProgress, 0);
   return `<div class="sec-title">Today's drill</div>
     <div class="card" style="margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
@@ -1069,6 +1122,13 @@ function kidDrillHtml(){
       <div class="card-body" style="color:var(--cream);">${body}</div>
       ${d.parent?`<div style="margin-top:9px;display:flex;align-items:flex-start;gap:7px;font-size:0.76rem;color:var(--muted);"><i class="ti ti-users" style="font-size:0.95rem;line-height:1.3;flex-shrink:0;"></i><span><b style="color:var(--cream);font-weight:700;">With a grown-up:</b> ${d.parent}</span></div>`:''}
       <div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:0.74rem;color:var(--muted);"><i class="ti ti-arrow-up-right" style="vertical-align:-1px;margin-right:3px;"></i>Builds ${d.builds}</div>
+      ${doneToday
+        ? `<div style="margin-top:10px;display:flex;align-items:center;gap:8px;background:rgba(36,150,87,0.08);border:1px solid rgba(36,150,87,0.25);border-radius:10px;padding:9px 12px;font-size:0.8rem;font-weight:700;color:var(--green-b,#1E7F4A);"><i class="ti ti-check"></i>Done today — you're building something.</div>`
+        : `<div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="recordKidDrill('kid')" style="flex:1;background:var(--ink,#13291C);border:none;border-radius:10px;padding:11px 8px;color:#fff;font-family:'Archivo',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;touch-action:manipulation;">I did it!</button>
+            <button onclick="recordKidDrill('parent')" style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px 8px;color:var(--cream);font-family:'Archivo',sans-serif;font-size:0.8rem;font-weight:700;cursor:pointer;touch-action:manipulation;">A grown-up did it with me</button>
+          </div>`}
+      <div style="display:flex;gap:6px;margin-top:12px;padding-top:11px;border-top:1px solid var(--border);">${ladder}</div>
     </div>`;
 }
 
@@ -1846,6 +1906,12 @@ function renderSetup() {
       <button id="rs-9"  onclick="setHoles(9,false)"  style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">9 holes</button>
       <button id="rs-p3" onclick="setHoles(9,true)"   style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:11px;color:var(--muted);font-weight:700;cursor:pointer;touch-action:manipulation;">Par-3</button>
     </div>
+    <div id="rs-nine-wrap" style="display:none;margin:-6px 0 14px;">
+      <div style="display:flex;gap:8px;">
+        <button id="rs-front9" onclick="setNine('front')" style="flex:1;background:var(--green);border:none;border-radius:10px;padding:9px;color:#fff;font-weight:700;font-size:0.8rem;cursor:pointer;touch-action:manipulation;">Front 9</button>
+        <button id="rs-back9" onclick="setNine('back')" style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:9px;color:var(--muted);font-weight:700;font-size:0.8rem;cursor:pointer;touch-action:manipulation;">Back 9</button>
+      </div>
+    </div>
     <div id="rs-start-solo" style="display:${_roundMode==='family'?'none':'block'};">
       <button class="btn-gold" style="width:100%;" onclick="startRound()">Start Round →</button>
       <button onclick="startRound(true)" style="width:100%;background:none;border:none;margin-top:10px;color:var(--muted);font-size:0.78rem;text-decoration:underline;cursor:pointer;touch-action:manipulation;">Start without a course, quick round</button>
@@ -1857,6 +1923,7 @@ function renderSetup() {
   `;
   window._setupHoles = 18;
   window._setupPar3 = false;
+  window._setupNine = 'front';
   window._setupCourse = null;
   window._scanTee = 'White';
 }
@@ -1949,6 +2016,37 @@ function setHoles(n, par3) {
     b.style.color = on?'#fff':'var(--muted)';
     b.style.border = on?'none':'1px solid var(--border)';
   });
+  // Front/back-9 picker only matters for a 9-hole round on a course (an 18-hole
+  // card gets sliced to the chosen half; par-3 and quick rounds don't care).
+  const nw=document.getElementById('rs-nine-wrap');
+  if(nw) nw.style.display = (n===9&&!par3) ? 'block' : 'none';
+}
+function setNine(which){
+  window._setupNine = which;
+  [['rs-front9', which==='front'], ['rs-back9', which==='back']].forEach(([id,on])=>{
+    const b=document.getElementById(id); if(!b) return;
+    b.style.background = on?'var(--green)':'var(--surf2)';
+    b.style.color = on?'#fff':'var(--muted)';
+    b.style.border = on?'none':'1px solid var(--border)';
+  });
+}
+// FIX (2026-07-01, open-bug #2): a 9-hole round used the tee's FULL-18 par and
+// front-9 pars unconditionally → vs-par, badges and stats were wrong. Slice the
+// tee card to the holes actually played and compute par from the slice.
+function teeSlices(tee, numH, par3){
+  if(par3) return { holePars:Array(numH).fill(3), yardages:Array(numH).fill(null), par:numH*3 };
+  let hp = (tee?.holePars&&tee.holePars.length) ? tee.holePars.slice() : Array(numH).fill(4);
+  let yd = (tee?.yardages&&tee.yardages.length) ? tee.yardages.slice() : Array(numH).fill(null);
+  if(hp.length>numH){
+    const back = window._setupNine==='back' && hp.length>=numH*2;
+    hp = back ? hp.slice(hp.length-numH) : hp.slice(0,numH);
+    yd = yd.length>numH ? (back ? yd.slice(yd.length-numH) : yd.slice(0,numH)) : yd;
+  }
+  while(hp.length<numH) hp.push(4);
+  while(yd.length<numH) yd.push(null);
+  const sliced = hp.length!==(tee?.holePars?.length||0);
+  const par = (!sliced && tee?.par) ? tee.par : hp.reduce((a,b)=>a+(b||4),0);
+  return { holePars:hp, yardages:yd, par };
 }
 async function searchCourse() {
   const q=(document.getElementById('rs-search')?.value||'').trim();
@@ -2016,10 +2114,9 @@ function startRound(quick) {
   const cData = window._setupCourse;
   if (!cData && !quick) { showToast('Search and select a course first, or use quick round','error'); return; }
   const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
-  const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
-  const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
+  const { holePars, yardages, par: roundPar } = teeSlices(tee, numH, par3);
   const courseName = cData ? cData.name+(cData.course?', '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Quick Round'));
-  _round = { date, course: courseName, par: (par3 ? numH*3 : (tee?.par||holePars.reduce((a,b)=>a+b,0))), tee: tee?.name||null, round_type: par3?'par3':(numH===9?'nine':'regulation_18'), rating: tee?.rating||null, slope: tee?.slope||null };
+  _round = { date, course: courseName, par: roundPar, tee: tee?.name||null, round_type: par3?'par3':(numH===9?'nine':'regulation_18'), rating: tee?.rating||null, slope: tee?.slope||null };
   _holes = Array.from({length:numH},(_,i)=>({ hole:i+1, par:holePars[i]||4, score:holePars[i]||4, yds:yardages[i]||null, photos:[], putts:null, fairway:null, approachYds:null, approachClub:null, missDir:null, missDepth:null }));
   _holeIdx=0; _manYards=null; _caddieOpen=false; _caddieHist=[];
   document.getElementById('rm-rt').style.display='';
@@ -2420,8 +2517,7 @@ function startFamilyRound(quick){
   if (_famMode==='kid_birdie_bomb' && !kids.length) { showToast('Kid Birdie Bomb needs at least one kid','error'); return; }
   if (_famMode==='team_captain' && (!kids.length || _famPlayers.length<2)) { showToast('Team Captain needs at least one kid and two players','error'); return; }
   const tee   = cData ? (cData.data.allTees?.find(t=>t.name===window._setupTee)||cData.data.allTees?.[0]||null) : null;
-  const holePars = par3 ? Array(numH).fill(3) : (tee?.holePars||Array(numH).fill(4));
-  const yardages = par3 ? Array(numH).fill(null) : (tee?.yardages||Array(numH).fill(null));
+  const { holePars, yardages, par: roundPar } = teeSlices(tee, numH, par3);
   const courseName = cData ? cData.name+(cData.course?', '+cData.course:'') : ((document.getElementById('rs-search')?.value||'').trim() || (par3?'Par-3 Round':'Family Round'));
   // Game-mode data (holePars now known)
   if (_famMode==='parents_vs_kids') {
@@ -2442,7 +2538,7 @@ function startFamilyRound(quick){
   } else if (_famMode==='team_captain') {
     _famModeData={ captainOrder:kids.map(k=>k.key), picks:{} };
   } else { _famModeData=null; }
-  _famRound = { date, course: courseName, par:(par3?numH*3:(tee?.par||holePars.reduce((a,b)=>a+b,0))), tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null, game_mode:_famMode };
+  _famRound = { date, course: courseName, par: roundPar, tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null, game_mode:_famMode };
   _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc }; });
   _famIdx = 0;
   document.getElementById('rm-rt').style.display='none';
@@ -3374,6 +3470,16 @@ async function persistRound(r) {
 function persistRounds() { try { localStorage.setItem(RK(), JSON.stringify(rounds)); } catch(e) {} }
 
 // ── AUTH FUNCTIONS ───────────────────────────────────────────────
+// Claim-intent: set when the user taps "Save your progress" on a profile —
+// the explicit "this is MINE" assertion. Sign-in NEVER claims without it.
+function _claimIntended() {
+  try { return localStorage.getItem('sv-claim-intent') === userId; } catch(e) { return false; }
+}
+function _setClaimIntent() {
+  if (userId && !userId.startsWith('preview_') && !profile?.auth_id) {
+    try { localStorage.setItem('sv-claim-intent', userId); } catch(e) {}
+  }
+}
 async function linkAuthToProfile(authId) {
   const token = (await _sb.auth.getSession()).data.session?.access_token || SUPABASE_ANON;
   const authHdr = { ...SB_HDR, Authorization: `Bearer ${token}` };
@@ -3391,6 +3497,7 @@ async function linkAuthToProfile(authId) {
       });
     }
     if (profile) { profile.auth_id = authId; localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile)); }
+    try { localStorage.removeItem('sv-claim-intent'); } catch(e) {} // intent consumed
   } catch(e) { console.warn('linkAuthToProfile failed', e); }
 }
 
@@ -3520,6 +3627,7 @@ async function submitMagicLink() {
   if (!email || !email.includes('@')) { document.getElementById('auth-msg').textContent = 'Enter a valid email address.'; return; }
   const btn = document.getElementById('auth-send-btn');
   btn.disabled = true; btn.textContent = 'Sending…';
+  _setClaimIntent(); // the user is explicitly saving THIS profile as theirs
   try {
     const { error } = await _sb.auth.signInWithOtp({
       email,
