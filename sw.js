@@ -3,7 +3,7 @@
 // fetch fresh index.html on every load (the old code honored GitHub Pages'
 // max-age=600 and could serve a stale disk copy for ~10 min). The token still
 // guarantees a clean cache swap when this file's bytes change.
-const CACHE = 'spinvibes-app-v18'; // redeploy 2026-07-02b: retrigger after a transient Pages deploy failure
+const CACHE = 'spinvibes-app-v19'; // 2026-07-02 s53: Family resources parent page (adult Home, bottom tab)
 const SHELL = ['/', '/index.html', '/confirm.html', '/manifest.json'];
 
 self.addEventListener('install', e => {

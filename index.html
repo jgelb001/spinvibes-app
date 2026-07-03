@@ -235,6 +235,44 @@
     .md .md-ul li, .md .md-ol li { margin-bottom: 4px; }
     .md strong { color: var(--cream); font-weight: 700; }
     .md em { font-style: italic; }
+
+    /* ── FAMILY RESOURCES (parent page, adult profiles only) ── */
+    .fr-tab { background:#13291C; border:1px solid var(--border); border-radius:16px; padding:14px 15px;
+              display:flex; align-items:center; gap:12px; cursor:pointer; margin-top:4px;
+              box-shadow:0 6px 18px rgba(19,41,28,.16); }
+    .fr-tab:active { transform:scale(.99); }
+    .fr-tab .fr-ic { width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.09);
+              display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+    .fr-tab .fr-t { font-size:0.9rem; font-weight:800; color:#fff; }
+    .fr-tab .fr-s { font-size:0.76rem; color:#B9C8BD; margin-top:2px; }
+    .fr-tab .fr-ch { margin-left:auto; color:#5BBE85; font-size:1.1rem; font-weight:800; flex-shrink:0; }
+    .fr-acc { background:var(--surf); border:1px solid var(--border); border-radius:16px;
+              margin-bottom:10px; overflow:hidden; }
+    .fr-h { display:flex; align-items:center; gap:12px; padding:14px 15px; cursor:pointer; }
+    .fr-h .fr-hic { width:38px; height:38px; border-radius:11px; background:var(--surf2);
+              border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+    .fr-h .fr-ht { font-weight:800; font-size:0.88rem; color:var(--cream); }
+    .fr-h .fr-hs { font-size:0.72rem; color:var(--muted); margin-top:1px; }
+    .fr-h .fr-pm { margin-left:auto; color:var(--green); font-weight:800; font-size:1.1rem; width:20px; text-align:center; }
+    .fr-b { display:none; padding:2px 15px 15px; }
+    .fr-acc.open .fr-b { display:block; }
+    .fr-b ul { list-style:none; padding:0; margin:0; }
+    .fr-b li { font-size:0.8rem; line-height:1.55; color:var(--cream); padding:7px 0 7px 20px;
+              position:relative; border-top:1px solid var(--surf2); }
+    .fr-b li:first-child { border-top:none; }
+    .fr-b li::before { content:''; position:absolute; left:2px; top:14px; width:7px; height:7px;
+              border-radius:50%; background:var(--green); }
+    .fr-cheat { margin-top:10px; background:rgba(36,150,87,0.08); border:1px solid rgba(36,150,87,0.22);
+              border-radius:12px; padding:10px 12px; font-size:0.78rem; line-height:1.5; color:var(--cream); }
+    .fr-cheat b { color:var(--green); }
+    .fr-row { display:flex; justify-content:space-between; font-size:0.76rem; padding:6px 2px;
+              border-top:1px solid rgba(36,150,87,0.14); }
+    .fr-row:first-of-type { border-top:none; }
+    .fr-row span:last-child { color:var(--green); font-weight:700; }
+    .fr-link { display:flex; align-items:center; gap:8px; margin-top:10px; background:var(--surf2);
+              border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:0.78rem;
+              color:var(--cream); font-weight:600; cursor:pointer; }
+    .fr-link .fr-go { margin-left:auto; color:var(--green); font-weight:800; }
   </style>
 </head>
 <body>
@@ -282,6 +320,7 @@
     <div class="page" id="pg-shortgame"></div>
     <div class="page" id="pg-strategy"></div>
     <div class="page" id="pg-mygame"></div>
+    <div class="page" id="pg-famres"></div>
   </div>
 
   <nav class="nav">
@@ -796,7 +835,7 @@ function goPage(id) {
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
   // Pages without their own nav tab (e.g. shortgame, stretch) highlight their parent tab
-  const navMap = { shortgame:'range', stretch:'range', strategy:'mygame' };
+  const navMap = { shortgame:'range', stretch:'range', strategy:'mygame', famres:'home' };
   const nb = document.getElementById('nb-'+(navMap[id]||id)) ;
   if (nb) nb.classList.add('on');
 }
@@ -806,6 +845,104 @@ function toggleDark() {
 }
 // Restore saved dark mode preference on load (Fable default is light)
 try { if (localStorage.getItem('sv-dark-mode') === '1') document.body.classList.add('sv-dark'); } catch(e) {}
+
+// ── FAMILY RESOURCES — the parent page (adult profiles only; approved off
+//    parent-resources-mock.html, session 53). Brand-neutral on purpose: the
+//    privacy promise is "no ads, no shopping links", so nothing here sells. ──
+function frIcon(kind){
+  const s = 'width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+  if (kind==='clubs')   return `<svg ${s}><path d="M8 3l1 13"/><path d="M9 16c-3 0-5 1-5 2.5S6.5 21 9 21s5-1 5-2.5"/></svg>`;
+  if (kind==='wear')    return `<svg ${s}><path d="M9 4l3 2 3-2 4 3-2 3-1-1v11H7V9L6 10 4 7z"/></svg>`;
+  if (kind==='bag')     return `<svg ${s}><path d="M7 8h10l-1 13H8z"/><path d="M9 8V5a3 3 0 0 1 6 0v3"/></svg>`;
+  if (kind==='between') return `<svg ${s}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`;
+  return `<svg ${s}><path d="M6 21V4"/><path d="M6 5h9l-2.5 3L15 11H6"/></svg>`;
+}
+function frSection(id, icon, title, sub, body){
+  return `<div class="fr-acc" id="fr-${id}">
+    <div class="fr-h" onclick="frToggle('${id}')">
+      <div class="fr-hic">${frIcon(icon)}</div>
+      <div style="min-width:0;"><div class="fr-ht">${title}</div><div class="fr-hs">${sub}</div></div>
+      <div class="fr-pm" id="fr-pm-${id}">+</div>
+    </div>
+    <div class="fr-b">${body}</div>
+  </div>`;
+}
+function frToggle(id){
+  const el = document.getElementById('fr-'+id), was = el.classList.contains('open');
+  document.querySelectorAll('.fr-acc').forEach(a=>a.classList.remove('open'));
+  document.querySelectorAll('.fr-pm, [id^="fr-pm-"]').forEach(p=>p.textContent='+');
+  if (!was){ el.classList.add('open'); document.getElementById('fr-pm-'+id).textContent='–'; }
+}
+function frOpenKidHome(){
+  const kid = (family||[]).find(m=>m.isKid);
+  if (kid){ setActiveProfile(kid._key); goPage('home'); }
+  else { goPage('home'); }
+}
+let _famResRendered = false;
+function openFamRes(){
+  if (!_famResRendered){
+    document.getElementById('pg-famres').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;" onclick="goPage('home')">
+        <div style="width:34px;height:34px;border-radius:50%;background:var(--surf);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--cream);font-size:1rem;">&lsaquo;</div>
+        <div style="font-size:0.78rem;color:var(--muted);font-weight:600;">Home</div>
+      </div>
+      <div style="font-size:1.5rem;font-weight:800;letter-spacing:-0.01em;color:var(--cream);">Family resources</div>
+      <div style="font-size:0.78rem;color:var(--muted);margin:2px 0 16px;line-height:1.5;">Plain answers for golf parents. No brands, no ads, no shopping links. Just the stuff that matters, from PGA coaching guidance and real golf families.</div>
+
+      ${frSection('clubs','clubs','First clubs','How many, what size, what to skip',`
+        <ul>
+          <li>A kid needs <b>4 to 6 clubs</b>, not 14: putter, a wedge, a 7 iron, and one club that goes far.</li>
+          <li>Size by <b>height, not age</b>. The chart below is the whole secret.</li>
+          <li><b>Used is smart.</b> Kids outgrow a set in about two seasons. Hand-me-downs and resale racks are your friend.</li>
+          <li>Skip <b>cut-down adult clubs</b>. Too heavy, and they teach a flat swing a coach has to undo later.</li>
+          <li>A left-handed kid needs <b>left-handed clubs</b>. Don't flip them righty because the set was on sale.</li>
+        </ul>
+        <div class="fr-cheat"><b>Height cheat card</b>
+          <div class="fr-row"><span>Under 3'8"</span><span>Tot / smallest junior set</span></div>
+          <div class="fr-row"><span>3'8" to 4'4"</span><span>Junior small (ages 5 to 8)</span></div>
+          <div class="fr-row"><span>4'4" to 5'0"</span><span>Junior large (ages 9 to 12)</span></div>
+          <div class="fr-row"><span>Over 5'0"</span><span>Teen or short adult set</span></div>
+        </div>`)}
+
+      ${frSection('wear','wear','What to wear','Course dress codes, shoes, the glove',`
+        <ul>
+          <li>For kids, most courses are relaxed: a <b>collared shirt or neat tee</b>, shorts are fine, <b>sneakers are fine</b>.</li>
+          <li><b>No metal spikes</b>, ever. Golf shoes can wait until your kid asks for them.</li>
+          <li>The glove goes on the <b>lead hand</b>: left hand for a righty, right hand for a lefty. Snug like a second skin.</li>
+          <li>Think <b>sun and layers</b>: hat, sunscreen, and a layer they can peel off by hole 3.</li>
+        </ul>
+        <div class="fr-cheat"><b>One-line rule:</b> if it's neat and they can swing in it, it plays.</div>`)}
+
+      ${frSection('bag','bag','In the bag','Balls, tees and the stuff that saves a round',`
+        <ul>
+          <li><b>Soft, low-compression balls</b> fly better off slow swings. Bright colors are easier to find in the rough.</li>
+          <li>Tees, a <b>ball marker</b>, water, and a snack. Snacks fix more swings than tips do.</li>
+          <li>A light <b>carry bag with a stand</b> beats a big cart bag. If they can't carry it, it's too much bag.</li>
+          <li>Skip rangefinders and gadgets. At this stage the caddie in the app answers the "what club?" question.</li>
+        </ul>`)}
+
+      ${frSection('between','between','Between lessons','What to actually do this week',`
+        <ul>
+          <li><b>You don't need to coach.</b> Ten minutes and today's drill is a real practice day.</li>
+          <li>At the range, buy the <b>small bucket</b>. A focused 25 balls beats a tired 80.</li>
+          <li><b>End on a good one.</b> Finish every session with a made putt or a clean swing, then stop.</li>
+          <li>First course trips: a <b>par-3 course or 3 quiet holes</b> late in the day. Fun first, score never.</li>
+        </ul>
+        <div class="fr-link" onclick="frOpenKidHome()">Today's drill and the weekly family challenge live on your kid's Home <span class="fr-go">Open &rsaquo;</span></div>`)}
+
+      ${frSection('course','course','On-course basics','The five habits courses notice',`
+        <ul>
+          <li><b>Quiet and still</b> when anyone is swinging. Stand where the player can see you, never behind the ball.</li>
+          <li>Play <b>ready golf</b>: be thinking about your shot before it's your turn.</li>
+          <li>Leave the course better: <b>fix ball marks, replace divots</b>, rake the bunker smooth.</li>
+          <li>On the green, <b>don't walk on anyone's line</b>. Putt out, then step aside for the next player.</li>
+          <li>Wave faster groups through. It earns more goodwill than a good drive.</li>
+        </ul>`)}
+    `;
+    _famResRendered = true;
+  }
+  goPage('famres');
+}
 
 // ── SETTINGS, mirrors the PWA settings overlay (profile + miss tendency + bag) ──
 const MISS_KEY = ()=>'sv-miss-'+(userId||'g');
@@ -1653,6 +1790,20 @@ function renderHome() {
     ${renderBag()}
 
     ${comingSoonHtml()}
+
+    <!-- FAMILY RESOURCES — parent page, ADULT profiles only (kids never see this branch) -->
+    <div class="fr-tab" onclick="openFamRes()">
+      <div class="fr-ic">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19V6a2 2 0 0 1 2-2h5v15H6a2 2 0 0 0-2 2z"/><path d="M20 19V6a2 2 0 0 0-2-2h-5v15h5a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <div style="min-width:0;flex:1;">
+        <div class="fr-t">Family resources</div>
+        <div class="fr-s">Clubs, clothes and gear for junior golfers, in plain words.</div>
+      </div>
+      <div class="fr-ch">&rsaquo;</div>
+    </div>
     `}
   `;
   refreshResumeBanner();
