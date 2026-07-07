@@ -3,7 +3,7 @@
 // fetch fresh index.html on every load (the old code honored GitHub Pages'
 // max-age=600 and could serve a stale disk copy for ~10 min). The token still
 // guarantees a clean cache swap when this file's bytes change.
-const CACHE = 'spinvibes-app-v21'; // 2026-07-06 s54b: kid avatar chip premium rendering (matches spinvibes-kid + iOS)
+const CACHE = 'spinvibes-app-v22'; // 2026-07-07 s54c: per-member settings — edit each kid's hand/skill/goal/age/bag/miss, drills+caddie follow
 const SHELL = ['/', '/index.html', '/confirm.html', '/manifest.json'];
 
 // Delete every old spinvibes-app-* cache. Runs on activate AND lazily once per SW
