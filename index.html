@@ -1847,7 +1847,7 @@ function renderCaddie() {
   const p = profile;
   const bagStr  = p.bag||'standard set';
   const distStr = p.distances ? Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(', ') : '';
-  const sys = `You are a concise golf caddie for ${caddieName(p)}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()}${caddieKidLine(p)} Lead with the key number or club, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words).`;
+  const sys = `You are a concise golf caddie for ${caddieName(p)}, a ${HAND[p.hand]||'right-handed'} golfer (${SKILL[p.skill]||p.skill}). Goal: ${GOAL[p.goal]||p.goal}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()}${caddieKidLine(p)} Lead with the key number or club, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words). Plain text only: no markdown, no asterisks, no bullet points.`;
   const inputRow = p.isKid
     ? `<div style="padding-top:10px;border-top:1px solid var(--border);flex-shrink:0;">
         <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;">Tap a question:</div>
@@ -2644,7 +2644,7 @@ function toggleHoleCaddie() {
 function renderHoleCaddieMessages() {
   const el=document.getElementById('hc-msgs'); if(!el) return;
   const h=_holes[_holeIdx];
-  const welcome=`<div class="msg s">Caddie ready. Hole ${h.hole}, Par ${h.par}. Ask anything.</div>`;
+  const welcome=`<div class="msg s">Caddie ready. Hole ${h.hole}, Par ${h.par}. ${profile&&profile.isKid?'Tap a question below.':'Ask anything.'}</div>`;
   el.innerHTML=welcome+_caddieHist.map(m=>`<div class="msg ${m.role==='user'?'u':'c'}">${esc(m.content)}</div>`).join('');
 }
 async function sendHoleCaddie(preset) {
@@ -2656,7 +2656,7 @@ async function sendHoleCaddie(preset) {
   const p=profile, h=_holes[_holeIdx];
   const bagStr=p.bag||'standard set';
   const distStr=p.distances?Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(','):'';
-  const sys=`Caddie for ${caddieName(p)} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()}${caddieKidLine(p)} Lead with the recommendation, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words).`;
+  const sys=`Caddie for ${caddieName(p)} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()}${caddieKidLine(p)} Lead with the recommendation, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words). Plain text only: no markdown, no asterisks, no bullet points.`;
   el.innerHTML+=`<div class="msg u">${esc(msg)}</div>`;
   const t=document.createElement('div'); t.className='msg c'; t.textContent='…'; el.appendChild(t); el.scrollTop=el.scrollHeight;
   _caddieHist.push({role:'user',content:msg}); if(_caddieHist.length>8) _caddieHist=_caddieHist.slice(-8);

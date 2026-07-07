@@ -3,16 +3,28 @@
 // fetch fresh index.html on every load (the old code honored GitHub Pages'
 // max-age=600 and could serve a stale disk copy for ~10 min). The token still
 // guarantees a clean cache swap when this file's bytes change.
-const CACHE = 'spinvibes-app-v19'; // 2026-07-02 s53: Family resources parent page (adult Home, bottom tab)
+const CACHE = 'spinvibes-app-v20'; // 2026-07-06 s54: caddie plain-text rule + kid in-round greeting copy + hardened cache cleanup
 const SHELL = ['/', '/index.html', '/confirm.html', '/manifest.json'];
+
+// Delete every old spinvibes-app-* cache. Runs on activate AND lazily once per SW
+// startup: s53 found a stale v16 cache still sitting beside v18, meaning activate's
+// waitUntil didn't complete at some point (browser kill / eviction race). The lazy
+// re-run makes cleanup self-healing instead of a one-shot.
+let _cleaned = false;
+function cleanupOldCaches() {
+  return caches.keys().then(keys =>
+    Promise.all(keys.filter(k => k.startsWith('spinvibes-app-') && k !== CACHE).map(k => caches.delete(k)))
+  ).then(() => { _cleaned = true; });
+}
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(cleanupOldCaches().then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
+  if (!_cleaned) e.waitUntil(cleanupOldCaches()); // self-healing sweep (see note above)
   if (e.request.method !== 'GET') return;
   if (e.request.url.includes('supabase') || e.request.url.includes('workers.dev') || e.request.url.includes('anthropic')) return;
 
