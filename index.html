@@ -1591,7 +1591,8 @@ const _kidAv = (() => {
     return `<path d="M110 168 Q130 186 150 168" stroke="${INK}" stroke-width="5.5" stroke-linecap="round" fill="none"/>`;
   }
   const glovesColor=id=> id==='gl_red'?'#C0392B':(id==='gl_teal'?'#2A6E6A':INK);
-  function clubSvg(st,id){
+  function clubSvg(st,id,uid){
+    const steel=uid?`url(#sg${uid})`:'#AEB4B9', gold=uid?`url(#mg${uid})`:'#B08D4F';
     const gc=GRIP_COLORS[st.wear&&st.wear.grip]||'#7A6033';
     const paint=PAINT_COLORS[st.wear&&st.wear.clubpaint]||null;
     const gl=(st.wear&&st.wear.gloves)?glovesColor(st.wear.gloves):INK;
@@ -1604,10 +1605,10 @@ const _kidAv = (() => {
     const grip=`<line x1="185" y1="168" x2="201" y2="214" stroke="${gc}" stroke-width="11" stroke-linecap="round"/>`;
     const hands=`<circle cx="193" cy="191" r="9" fill="${gl}" stroke="${INK}" stroke-width="2.5"/>`;
     let head;
-    if(id==='iron') head=`<path d="M224 260 l-26 8 a9 9 0 0 0 6 16 l24 -4 a10 10 0 0 0 8 -12 z" fill="${paint||'#AEB4B9'}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>`;
-    else if(id==='driver') head=`<ellipse cx="218" cy="272" rx="17" ry="13" fill="${paint||'#5C3A64'}" stroke="${INK}" stroke-width="4"/><path d="M204 266 a17 13 0 0 0 6 16" stroke="#E6C97E" stroke-width="3" fill="none"/>`;
-    else if(id==='gold') head=`<ellipse cx="218" cy="274" rx="18" ry="14" fill="${paint||'#B08D4F'}" stroke="${INK}" stroke-width="4"/><ellipse cx="214" cy="270" rx="6" ry="4" fill="#E6C97E"/>`;
-    else head=`<rect x="206" y="254" width="34" height="11" rx="4" transform="rotate(18 206 254)" fill="${paint||'#AEB4B9'}" stroke="${INK}" stroke-width="4"/><line x1="210" y1="260" x2="236" y2="269" stroke="#E6C97E" stroke-width="2.4" stroke-linecap="round"/>`;
+    if(id==='iron') head=`<path d="M224 260 l-26 8 a9 9 0 0 0 6 16 l24 -4 a10 10 0 0 0 8 -12 z" fill="${paint||steel}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>`;
+    else if(id==='driver') head=`<ellipse cx="218" cy="272" rx="17" ry="13" fill="${paint||'#5C3A64'}" stroke="${INK}" stroke-width="4"/><path d="M204 266 a17 13 0 0 0 6 16" stroke="#E6C97E" stroke-width="3" fill="none"/><ellipse cx="212" cy="267" rx="6" ry="3.5" fill="#ffffff" opacity="0.35"/>`;
+    else if(id==='gold') head=`<ellipse cx="218" cy="274" rx="18" ry="14" fill="${paint||gold}" stroke="${INK}" stroke-width="4"/><ellipse cx="214" cy="270" rx="6" ry="4" fill="#fff2c2" opacity="0.85"/>`;
+    else head=`<rect x="206" y="254" width="34" height="11" rx="4" transform="rotate(18 206 254)" fill="${paint||steel}" stroke="${INK}" stroke-width="4"/><line x1="210" y1="260" x2="236" y2="269" stroke="#E6C97E" stroke-width="2.4" stroke-linecap="round"/>`;
     return `<g>${armR}${armL}${shaft}${grip}${hands}${head}</g>`;
   }
   function hatSvg(id){
@@ -1631,25 +1632,54 @@ const _kidAv = (() => {
     if(id==='sh_saddle')return base('#F4F1E8',`<path d="M98 266 a8 8 0 0 1 8 8" stroke="${INK}" stroke-width="3" fill="none"/><path d="M154 266 a8 8 0 0 1 8 8" stroke="${INK}" stroke-width="3" fill="none"/>`);
     return base('#ffffff');
   }
+  /* premium rendering pass (2026-07-06) — MUST match spinvibes-kid avatarSvg()
+     and iOS KidAvatar.swift; shading only, zero geometry changes. */
+  function shade(hex,p){
+    hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+    let r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),bb=parseInt(hex.slice(4,6),16);
+    const t=p<0?0:255, a=Math.abs(p);
+    r=Math.round((t-r)*a+r); g=Math.round((t-g)*a+g); bb=Math.round((t-bb)*a+bb);
+    return '#'+[r,g,bb].map(v=>v.toString(16).padStart(2,'0')).join('');
+  }
   function svg(st, w){
     if(!st || !st.avatar) return '';
     const b=BALLS.find(x=>x.id===st.avatar.ball)||BALLS[0];
     const wear=st.wear||{};
-    const uid='app'+(w||'f');
+    const uid='app'+(w||'f')+b.id; // ball id in the suffix: two chips can never share gradient defs
     return `
     <svg viewBox="0 0 260 310" ${w?`width="${w}"`:''} xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bg${uid}" cx="37%" cy="30%" r="78%">
+          <stop offset="0%" stop-color="${shade(b.fill,0.55)}"/>
+          <stop offset="45%" stop-color="${shade(b.fill,0.22)}"/>
+          <stop offset="82%" stop-color="${b.fill}"/>
+          <stop offset="100%" stop-color="${shade(b.fill,-0.16)}"/>
+        </radialGradient>
+        <linearGradient id="sg${uid}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f2f4f6"/><stop offset="0.35" stop-color="#eef0f2"/>
+          <stop offset="0.5" stop-color="#aab0b6"/><stop offset="1" stop-color="#6c7278"/>
+        </linearGradient>
+        <linearGradient id="mg${uid}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#fff2c2"/><stop offset="0.45" stop-color="#EBD289"/>
+          <stop offset="0.7" stop-color="#C8A24C"/><stop offset="1" stop-color="#8C6C2E"/>
+        </linearGradient>
+      </defs>
       <ellipse cx="130" cy="292" rx="62" ry="9" fill="rgba(19,41,28,0.10)"/>
       <line x1="108" y1="233" x2="104" y2="268" stroke="${INK}" stroke-width="7" stroke-linecap="round"/>
       <line x1="152" y1="233" x2="156" y2="268" stroke="${INK}" stroke-width="7" stroke-linecap="round"/>
       ${shoesSvg(wear.shoes)}
       <g>
-        <circle cx="130" cy="145" r="92" fill="${b.fill}" stroke="${INK}" stroke-width="6"/>
-        <g clip-path="url(#bc${uid})">${dimples(b.dim)}${wear.decal?decalSvg(wear.decal):''}</g>
+        <circle cx="130" cy="145" r="92" fill="url(#bg${uid})" stroke="${INK}" stroke-width="6"/>
+        <g clip-path="url(#bc${uid})">${dimples(b.dim)}${wear.decal?decalSvg(wear.decal):''}
+          <ellipse cx="97" cy="100" rx="30" ry="21" fill="#ffffff" opacity="0.38"/>
+          <ellipse cx="130" cy="222" rx="82" ry="36" fill="#13291C" opacity="0.08"/>
+          <circle cx="130" cy="145" r="89" fill="none" stroke="${shade(b.fill,-0.24)}" stroke-width="2" opacity="0.45"/>
+        </g>
         <clipPath id="bc${uid}"><circle cx="130" cy="145" r="89"/></clipPath>
       </g>
       ${eyesSvg(st.avatar.eyes)}${noseSvg(st.avatar.nose)}${mouthSvg(st.avatar.mouth)}
       ${wear.hat?hatSvg(wear.hat):''}
-      ${clubSvg(st, clubForLevel(lvlOf(st)))}
+      ${clubSvg(st, clubForLevel(lvlOf(st)), uid)}
     </svg>`;
   }
   const ballFill=st=>{ const b=BALLS.find(x=>st&&st.avatar&&x.id===st.avatar.ball)||BALLS[0]; return b.fill; };
