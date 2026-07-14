@@ -2589,23 +2589,8 @@ function renderHole() {
     <div style="font-size:1.1rem;font-weight:700;color:var(--gold);">${clubSug.name.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())} <span style="font-size:0.78rem;color:var(--muted);font-weight:400;">(${clubSug.dist} yds)</span></div>
   </div>` : '';
 
-  // Caddie panel
-  const caddiePanel = `
-    <div style="margin-bottom:14px;">
-      <button onclick="toggleHoleCaddie()" id="hc-toggle" style="width:100%;background:var(--surf2);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:10px 16px;color:var(--gold-l);font-size:0.84rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
-        <span><i class="ti ti-message-circle" style="vertical-align:-1px;margin-right:6px;font-size:0.9rem;"></i>Ask Caddie, H${h.hole} P${h.par}</span>
-        <span id="hc-caret">${_caddieOpen?'▲':'▼'}</span>
-      </button>
-      <div id="hc-panel" style="display:${_caddieOpen?'block':'none'};background:var(--surf);border:1px solid rgba(201,168,76,0.15);border-top:none;border-radius:0 0 10px 10px;padding:12px 14px;">
-        <div id="hc-msgs" style="max-height:180px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:8px;margin-bottom:10px;font-size:0.83rem;line-height:1.5;"></div>
-        ${profile && profile.isKid
-          ? _presetChips(KID_HOLE_PRESETS,'sendHoleCaddie')
-          : `<div style="display:flex;gap:8px;align-items:flex-end;">
-          <textarea id="hc-input" rows="2" style="flex:1;background:var(--surf2);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:8px 10px;color:var(--cream);font-family:'Archivo',sans-serif;font-size:16px;resize:none;" placeholder="Yardage? Lie? Wind?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendHoleCaddie();}"></textarea>
-          <button onclick="sendHoleCaddie()" style="background:var(--green);border:none;border-radius:8px;padding:10px 14px;color:var(--cream);font-weight:700;font-size:0.85rem;cursor:pointer;touch-action:manipulation;">Send</button>
-        </div>`}
-      </div>
-    </div>`;
+  // Caddie panel (shared with family rounds — see _holeCaddiePanel)
+  const caddiePanel = _holeCaddiePanel(h);
 
   document.getElementById('rm-body').innerHTML = `
     ${photoStrip}
@@ -2641,7 +2626,7 @@ function renderHole() {
 
   // Footer
   const footer=document.getElementById('rm-footer');
-  footer.style.display='';
+  footer.style.display='block'; /* BUG FIX 2026-07-13: '' fell back to the stylesheet's display:none — footer (strokes + Next) never showed */
   footer.innerHTML=`
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
       <button onclick="${_holeIdx===0?'exitRoundModal()':'holeBack()'}" style="flex-shrink:0;height:50px;padding:0 12px;border-radius:10px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:1.1rem;cursor:pointer;touch-action:manipulation;">←</button>
@@ -2716,6 +2701,27 @@ function setMiss(group, val) {
   });
 }
 
+// Shared hole-caddie panel (solo + family). 2026-07-13: family rounds had NO caddie; now both flows render this.
+function _holeCaddiePanel(h){
+  return `
+    <div style="margin-bottom:14px;">
+      <button onclick="toggleHoleCaddie()" id="hc-toggle" style="width:100%;background:var(--surf2);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:10px 16px;color:var(--gold-l);font-size:0.84rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;-webkit-tap-highlight-color:transparent;touch-action:manipulation;">
+        <span><i class="ti ti-message-circle" style="vertical-align:-1px;margin-right:6px;font-size:0.9rem;"></i>Ask Caddie, H${h.hole} P${h.par}</span>
+        <span id="hc-caret">${_caddieOpen?'▲':'▼'}</span>
+      </button>
+      <div id="hc-panel" style="display:${_caddieOpen?'block':'none'};background:var(--surf);border:1px solid rgba(201,168,76,0.15);border-top:none;border-radius:0 0 10px 10px;padding:12px 14px;">
+        <div id="hc-msgs" style="max-height:180px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:8px;margin-bottom:10px;font-size:0.83rem;line-height:1.5;"></div>
+        ${profile && profile.isKid
+          ? _presetChips(KID_HOLE_PRESETS,'sendHoleCaddie')
+          : `<div style="display:flex;gap:8px;align-items:flex-end;">
+          <textarea id="hc-input" rows="2" style="flex:1;background:var(--surf2);border:1px solid rgba(201,168,76,0.25);border-radius:8px;padding:8px 10px;color:var(--cream);font-family:'Archivo',sans-serif;font-size:16px;resize:none;" placeholder="Yardage? Lie? Wind?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendHoleCaddie();}"></textarea>
+          <button onclick="sendHoleCaddie()" style="background:var(--green);border:none;border-radius:8px;padding:10px 14px;color:var(--cream);font-weight:700;font-size:0.85rem;cursor:pointer;touch-action:manipulation;">Send</button>
+        </div>`}
+      </div>
+    </div>`;
+}
+// Mode-aware current hole for the caddie (solo uses _holes, family uses _famHoles).
+function _rmCurHole(){ return _rmMode==='family' ? _famHoles[_famIdx] : _holes[_holeIdx]; }
 function toggleHoleCaddie() {
   _caddieOpen=!_caddieOpen;
   const p=document.getElementById('hc-panel'), c=document.getElementById('hc-caret');
@@ -2724,7 +2730,7 @@ function toggleHoleCaddie() {
 }
 function renderHoleCaddieMessages() {
   const el=document.getElementById('hc-msgs'); if(!el) return;
-  const h=_holes[_holeIdx];
+  const h=_rmCurHole(); if(!h) return;
   const welcome=`<div class="msg s">Caddie ready. Hole ${h.hole}, Par ${h.par}. ${profile&&profile.isKid?'Tap a question below.':'Ask anything.'}</div>`;
   el.innerHTML=welcome+_caddieHist.map(m=>`<div class="msg ${m.role==='user'?'u':'c'}">${esc(m.content)}</div>`).join('');
 }
@@ -2734,7 +2740,7 @@ async function sendHoleCaddie(preset) {
   if (profile && profile.isKid && !preset) return;
   const msg = preset || (inp ? inp.value.trim() : ''); if(!msg) return;
   if (inp){ inp.value=''; inp.disabled=true; }
-  const p=profile, h=_holes[_holeIdx];
+  const p=profile, h=_rmCurHole(); if(!h){ if(inp) inp.disabled=false; return; }
   const bagStr=p.bag||'standard set';
   const distStr=p.distances?Object.entries(p.distances).map(([k,v])=>`${k}:${v}yds`).join(','):'';
   const sys=`Caddie for ${caddieName(p)} (${HAND[p.hand]||'right-handed'}, ${SKILL[p.skill]||p.skill}). Now on Hole ${h.hole}, Par ${h.par}${h.yds?`, ${h.yds} yards`:''}. Bag: ${bagStr}${distStr?'. Distances: '+distStr:''}.${_missLine()}${caddieKidLine(p)} Lead with the recommendation, then one swing thought. Use lead/trail, not plain left/right. 1-2 short sentences (under ~55 words). Plain text only: no markdown, no asterisks, no bullet points.`;
@@ -2977,6 +2983,7 @@ function startFamilyRound(quick){
   _famRound = { date, course: courseName, par: roundPar, tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null, game_mode:_famMode };
   _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc }; });
   _famIdx = 0;
+  _caddieOpen=false; _caddieHist=[]; // fresh caddie thread per family round (matches solo)
   document.getElementById('rm-rt').style.display='none';
   _rmMode='family';
   document.getElementById('rm-close-btn').style.display='';  // kid-proof: exit is ALWAYS visible
@@ -3013,8 +3020,10 @@ function renderFamHole(){
       </div>
     </div>
     ${famModeBanner(h)}
-    ${rows}`;
-  const footer=document.getElementById('rm-footer'); footer.style.display='';
+    ${rows}
+    ${_holeCaddiePanel(h)}`;
+  renderHoleCaddieMessages();
+  const footer=document.getElementById('rm-footer'); footer.style.display='block'; /* BUG FIX 2026-07-13: '' fell back to display:none — family round had NO Next hole/exit footer */
   footer.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <button onclick="${_famIdx===0?'exitRoundModal()':'famHoleBack()'}" style="flex-shrink:0;height:50px;padding:0 14px;border-radius:10px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:1.1rem;cursor:pointer;touch-action:manipulation;">←</button>
