@@ -354,6 +354,8 @@
 <div class="toast" id="toast"></div>
 <input type="file" id="hole-cam" accept="image/*" capture="environment" style="display:none;" onchange="holePhotoSelected(this)">
 <input type="file" id="hole-roll" accept="image/*" style="display:none;" onchange="holePhotoSelected(this)">
+<input type="file" id="fam-cam" accept="image/*" capture="environment" style="display:none;" onchange="famHolePhotoSelected(this)">
+<input type="file" id="fam-roll" accept="image/*" style="display:none;" onchange="famHolePhotoSelected(this)">
 
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
@@ -2766,6 +2768,17 @@ function holePhotoSelected(input) {
   reader.readAsDataURL(file);
 }
 function removeHolePhoto(idx) { _holes[_holeIdx].photos.splice(idx,1); renderHole(); }
+// Family-round hole photos (communal — shared to every member's gallery on save). 2026-07-13.
+function famHolePhotoSelected(input) {
+  const file=input.files[0]; if(!file) return; input.value='';
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const resized=await resizeImg(e.target.result,1200);
+    (_famHoles[_famIdx].photos||(_famHoles[_famIdx].photos=[])).push(resized); renderFamHole();
+  };
+  reader.readAsDataURL(file);
+}
+function removeFamHolePhoto(idx) { _famHoles[_famIdx].photos.splice(idx,1); renderFamHole(); }
 function showPhotoOverlay(src) {
   const o=document.createElement('div'); o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;'; o.onclick=()=>o.remove();
   const img=document.createElement('img'); img.src=src; img.style.cssText='max-width:96vw;max-height:90vh;border-radius:10px;'; o.appendChild(img); document.body.appendChild(o);
@@ -2839,6 +2852,28 @@ async function _uploadAppHolePhotos(roundId) {
           const { data } = _sb.storage.from('round-photos').getPublicUrl(path);
           uploaded.push(data.publicUrl);
         } else { uploaded.push(p); }
+      } catch(e) { uploaded.push(p); }
+    }
+    h.photos = uploaded;
+  }
+}
+
+// Upload family-round communal photos to the shared bucket under one prefix.
+// Mirrors _uploadAppHolePhotos but iterates _famHoles. 2026-07-13.
+async function _uploadFamHolePhotos(roundId) {
+  for (const h of _famHoles) {
+    if (!h.photos?.length) continue;
+    const uploaded = [];
+    for (let i = 0; i < h.photos.length; i++) {
+      const p = h.photos[i];
+      if (!p || p.startsWith('http')) { uploaded.push(p); continue; }
+      try {
+        const res  = await fetch(p);
+        const blob = await res.blob();
+        const path = `fam/${roundId}/hole-${h.hole}-${i}.jpg`;
+        const { error } = await _sb.storage.from('round-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+        if (!error) { const { data } = _sb.storage.from('round-photos').getPublicUrl(path); uploaded.push(data.publicUrl); }
+        else { uploaded.push(p); }
       } catch(e) { uploaded.push(p); }
     }
     h.photos = uploaded;
@@ -2981,7 +3016,7 @@ function startFamilyRound(quick){
     _famModeData={ captainOrder:kids.map(k=>k.key), picks:{} };
   } else { _famModeData=null; }
   _famRound = { date, course: courseName, par: roundPar, tee:tee?.name||null, round_type:par3?'par3':(numH===9?'nine':'regulation_18'), rating:tee?.rating||null, slope:tee?.slope||null, game_mode:_famMode };
-  _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc }; });
+  _famHoles = Array.from({length:numH},(_,i)=>{ const sc={}; _famPlayers.forEach(pl=>sc[pl.key]=holePars[i]||4); return { hole:i+1, par:holePars[i]||4, yds:yardages[i]||null, scores:sc, photos:[] }; });
   _famIdx = 0;
   _caddieOpen=false; _caddieHist=[]; // fresh caddie thread per family round (matches solo)
   document.getElementById('rm-rt').style.display='none';
@@ -3017,6 +3052,13 @@ function renderFamHole(){
         <button onclick="famAdjPar(-1)" style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;">−</button>
         <span id="fam-par" style="font-family:'Archivo',sans-serif;font-weight:800;font-size:1.3rem;color:var(--cream);min-width:18px;text-align:center;">${h.par}</span>
         <button onclick="famAdjPar(1)" style="width:24px;height:24px;border-radius:6px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:0.9rem;cursor:pointer;touch-action:manipulation;">+</button>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div class="photo-strip">
+        ${(h.photos||[]).map((p,i)=>`<div class="photo-thumb"><img src="${p}" onclick="showPhotoOverlay('${p}')"><button class="photo-rm" onclick="removeFamHolePhoto(${i})">✕</button></div>`).join('')}
+        <button class="photo-add" onclick="document.getElementById('fam-cam').click()"><span style="font-size:1.2rem;">📷</span>Camera</button>
+        <button class="photo-add" onclick="document.getElementById('fam-roll').click()"><span style="font-size:1.2rem;">🖼️</span>Roll</button>
       </div>
     </div>
     ${famModeBanner(h)}
@@ -3307,12 +3349,17 @@ async function saveFamilyRound(btn){
   const par=_famHoles.reduce((a,h)=>a+h.par,0);
   const base=Date.now();
   const prevActive=activeKey;
+  // Upload communal hole photos ONCE (shared across the whole family round), then
+  // each player's holeData references the same public URLs → the memory lands in
+  // every family member's gallery + share cards.
+  const hasFamPhotos=_famHoles.some(h=>h.photos?.some(p=>p&&!p.startsWith('http')));
+  if(hasFamPhotos){ if(btn) btn.textContent='Uploading photos…'; await _uploadFamHolePhotos(base); }
   for(const pl of _famPlayers){
     const total=_famHoles.reduce((a,h)=>a+(h.scores[pl.key]||0),0);
     const rec={ id:(self.crypto?.randomUUID?.() || (base+'-'+pl.key)), date:_famRound.date||new Date().toISOString().split('T')[0], course:_famRound.course||'',
       total, par, holes:_famHoles.length, tee:_famRound.tee||null,
       round_type:_famRound.round_type||'regulation_18', rating:_famRound.rating||null, slope:_famRound.slope||null, family:true, game_mode:_famRound.game_mode||'fun',
-      holeData:_famHoles.map(h=>({hole:h.hole,par:h.par,score:h.scores[pl.key]||0,yds:h.yds})),
+      holeData:_famHoles.map(h=>({hole:h.hole,par:h.par,score:h.scores[pl.key]||0,yds:h.yds,photo:h.photos?.[0]||null})),
       notes:'Family round'+(_famMode!=='fun'?' ('+((FAM_MODES.find(m=>m.key===_famMode)||{}).title||'')+')':'')+' · '+_famPlayers.map(x=>x.name).join(', ') };
     // Save locally under each player's per-profile round key
     activeKey=pl.key;
