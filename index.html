@@ -124,6 +124,11 @@
     .qc:active { background: var(--surf2); }
     .qc-icon { font-size: 1.4rem; color: var(--cream); margin-bottom: 6px; }
     .qc-title { font-weight: 700; font-size: 0.85rem; color: var(--cream); }
+
+    /* ── TIP CARDS (see Golf/TIP-CARDS-VISUAL-SPEC.md) ── */
+    .tip-card-wrap { border-radius: 20px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 4px 18px rgba(0,0,0,0.22); cursor: pointer; touch-action: manipulation; }
+    .tip-card-wrap svg { width: 100%; height: auto; display: block; }
+    .tip-card-lib .tip-card-wrap { cursor: default; }
     .qc-sub   { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
 
     /* ENAMEL MARKERS — mirrors iOS MarkerDisc: beveled antique-brass rim
@@ -321,6 +326,7 @@
     <div class="page" id="pg-strategy"></div>
     <div class="page" id="pg-mygame"></div>
     <div class="page" id="pg-famres"></div>
+    <div class="page" id="pg-tips"></div>
   </div>
 
   <nav class="nav">
@@ -518,7 +524,7 @@ async function setActiveProfile(key){
   caddieHistory = [];
   rounds = await loadRounds();
   renderSwitcher();
-  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame(); renderTips();
   document.getElementById('tb-user').textContent = (profile.name||'').toUpperCase();
   goPage('home');
 }
@@ -686,7 +692,7 @@ async function _launchApp() {
   rounds = await loadRounds();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
   renderSwitcher();
-  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame(); renderTips();
   document.getElementById('tb-user').textContent = profile.name.toUpperCase();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
@@ -841,7 +847,7 @@ function goPage(id) {
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
   // Pages without their own nav tab (e.g. shortgame, stretch) highlight their parent tab
-  const navMap = { shortgame:'range', stretch:'range', strategy:'mygame', famres:'home' };
+  const navMap = { shortgame:'range', stretch:'range', strategy:'mygame', famres:'home', tips:'home' };
   const nb = document.getElementById('nb-'+(navMap[id]||id)) ;
   if (nb) nb.classList.add('on');
 }
@@ -1150,7 +1156,7 @@ async function saveSettings() {
 
   closeSettings();
   renderSwitcher();
-  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame();
+  renderHome(); renderCaddie(); renderRange(); renderShortGame(); renderStrategy(); renderMyGame(); renderTips();
   document.getElementById('tb-user').textContent = (profile.name||'').toUpperCase();
   showToast(synced ? 'Saved ✓' : 'Saved on this device');
 }
@@ -1833,6 +1839,8 @@ function renderHome() {
       <div class="qc" onclick="goPage('range')"><div class="qc-icon"><i class="ti ti-run"></i></div><div class="qc-title">Practice</div><div class="qc-sub">Today's session</div></div>
       <div class="qc" onclick="goPage('caddie')"><div class="qc-icon"><i class="ti ti-message-circle"></i></div><div class="qc-title">Ask the caddie</div><div class="qc-sub">Tips &amp; clubs</div></div>
     </div>
+
+    ${tipsHomeInsertHtml()}
     ` : `
     <div class="grid2">
       <div class="qc" onclick="openRound()"><div class="qc-icon"><i class="ti ti-flag-2"></i></div><div class="qc-title">Start Round</div><div class="qc-sub">Track hole by hole</div></div>
@@ -1840,6 +1848,8 @@ function renderHome() {
       <div class="qc" onclick="goPage('range')"><div class="qc-icon"><i class="ti ti-run"></i></div><div class="qc-title">Practice Plan</div><div class="qc-sub">Today's session</div></div>
       <div class="qc" onclick="goPage('shortgame')"><div class="qc-icon"><i class="ti ti-target"></i></div><div class="qc-title">Short Game</div><div class="qc-sub">Chips &amp; putts</div></div>
     </div>
+
+    ${tipsHomeInsertHtml()}
 
     ${dailyThoughtsHtml()}
 
@@ -4443,6 +4453,2552 @@ function showToast(msg,type) {
   t.style.background=type==='error'?'rgba(192,57,43,0.9)':'var(--surf2)';
   t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),2200);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   TIP CARDS — render library
+   WrenHouse Golf, spinvibes-app (app.spinvibes.com)
+   Source of truth: Golf/TIP-CARDS-VISUAL-SPEC.md + Golf/TIP-CARDS-CONTENT-PLAN.md
+   Locked 2026-07-29/30. Do not change tokens/bands without updating the spec.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── TOKENS (exact hex from the spec, never re-derive) ── */
+const TC = {
+  cream:      '#F5F1E6',
+  ink:        '#13291C',
+  ink70:      'rgba(19,41,28,0.70)',
+  hairline:   '#E0D8C4',
+  onInk:      '#F5F1E6',
+  onInk60:    'rgba(245,241,230,0.60)',
+  oxblood:      '#B0492F',
+  oxbloodDeep:  '#93321F',
+  brass:      '#A98D5F',
+  brassMid:   '#8B6B47',
+  brassDark:  '#7A5836',
+  kelly:      '#249657',
+  kellyDeep:  '#1B7B47',
+  slate:      '#3E5C76'
+};
+
+/* ── CANVAS / BANDS (locked 2026-07-29) ── */
+const TC_W = 1080, TC_H = 1350, TC_SAFE = 72;
+const BAND = {
+  heroTop: 0, heroBottom: 830,
+  skyTop: 520, skyBottom: 690,
+  fringeTop: 690, fringeBottom: 716,
+  grassTop: 716, grassBottom: 830,
+  bodyTop: 830, bodyBottom: 1150,
+  calloutTop: 1150, calloutBottom: 1290,
+  footerTop: 1290, footerBottom: 1350
+};
+
+/* ── helpers ── */
+function tcEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+// Word-wrap a string to a max character width per line (rough, Archivo is fairly narrow)
+function tcWrap(text, maxChars) {
+  const words = String(text).split(/\s+/);
+  const lines = []; let cur = '';
+  words.forEach(w => {
+    if ((cur + ' ' + w).trim().length > maxChars && cur) { lines.push(cur.trim()); cur = w; }
+    else cur = (cur + ' ' + w).trim();
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+// Kid-register type scale (×1.15) — per TIP-CARDS-VISUAL-SPEC.md "Kid-register cards use
+// the same tokens/composition, differentiated by type scale (×1.15) ... max 3 body rows".
+// tcK scales a px size up for kid mode; tcKChars shrinks the wrap character-budget by the
+// same factor so the larger glyphs don't overrun the same fixed-pixel-width columns.
+function tcK(px, kid) { return kid ? Math.round(px * 1.15) : px; }
+function tcKChars(maxChars, kid) { return kid ? Math.max(1, Math.floor(maxChars / 1.15)) : maxChars; }
+// Footer label computed from the live card count, not a hardcoded denominator (was "/ 43"
+// on every card — silently wrong the moment the set isn't exactly 43 entries; see Owen
+// ui-ux review). TIP_CARDS is declared later in this file but this is only ever called at
+// render time, well after the whole script (incl. the TIP_CARDS const) has evaluated.
+function tcFooterLabel(id, opts) {
+  return `${id} / ${TIP_CARDS.length}` + (opts && opts.kid ? ' · kid' : '');
+}
+
+/* ── shared bands (ink hero w/ slate sky + grass, cream body, ink callout, cream footer) ── */
+function tcSceneBands() {
+  return `
+    <rect x="0" y="${BAND.heroTop}" width="${TC_W}" height="${BAND.heroBottom - BAND.heroTop}" fill="${TC.ink}"/>
+    <rect x="0" y="${BAND.skyTop}" width="${TC_W}" height="${BAND.skyBottom - BAND.skyTop}" fill="${TC.slate}"/>
+    <rect x="0" y="${BAND.fringeTop}" width="${TC_W}" height="${BAND.fringeBottom - BAND.fringeTop}" fill="${TC.kellyDeep}"/>
+    <rect x="0" y="${BAND.grassTop}" width="${TC_W}" height="${BAND.grassBottom - BAND.grassTop}" fill="${TC.kelly}"/>
+    <rect x="0" y="${BAND.bodyTop}" width="${TC_W}" height="${BAND.bodyBottom - BAND.bodyTop}" fill="${TC.cream}"/>
+    <rect x="0" y="${BAND.calloutTop}" width="${TC_W}" height="${BAND.calloutBottom - BAND.calloutTop}" fill="${TC.ink}"/>
+    <rect x="0" y="${BAND.footerTop}" width="${TC_W}" height="${BAND.footerBottom - BAND.footerTop}" fill="${TC.cream}"/>
+  `;
+}
+
+/* ── typography (Archivo only, per the locked scale) ── */
+function tcEyebrow(text, x, y, color, kid) {
+  return `<text x="${x}" y="${y}" font-family="Archivo,sans-serif" font-weight="600" font-size="${tcK(26,kid)}" letter-spacing="6" fill="${color||TC.brass}">${tcEsc(String(text).toUpperCase())}</text>`;
+}
+function tcHeadline(text, x, y, opts) {
+  opts = opts || {};
+  const maxChars = tcKChars(opts.maxChars || 22, opts.kid);
+  const lines = tcWrap(text, maxChars);
+  const lh = tcK(68, opts.kid);
+  return lines.map((l, i) =>
+    `<text x="${x}" y="${y + i * lh}" font-family="Archivo,sans-serif" font-weight="700" font-size="${tcK(64,opts.kid)}" letter-spacing="-1" fill="${opts.color || TC.onInk}">${tcEsc(l)}</text>`
+  ).join('');
+}
+function tcSectionHead(text, x, y, onInk, kid) {
+  return `<text x="${x}" y="${y}" font-family="Archivo,sans-serif" font-weight="700" font-size="${tcK(22,kid)}" letter-spacing="3.5" fill="${onInk ? TC.onInk : TC.ink70}">${tcEsc(String(text).toUpperCase())}</text>`;
+}
+function tcBody(text, x, y, opts) {
+  opts = opts || {};
+  return `<text x="${x}" y="${y}" font-family="Archivo,sans-serif" font-weight="500" font-size="${tcK(30,opts.kid)}" fill="${opts.color || TC.ink}">${tcEsc(text)}</text>`;
+}
+function tcBodyWrap(text, x, y, opts) {
+  opts = opts || {};
+  const maxChars = tcKChars(opts.maxChars || 46, opts.kid);
+  const lines = tcWrap(text, maxChars);
+  const lh = tcK(opts.lineHeight || 34, opts.kid);
+  return lines.map((l, i) =>
+    `<text x="${x}" y="${y + i * lh}" font-family="Archivo,sans-serif" font-weight="500" font-size="${tcK(opts.size||30, opts.kid)}" fill="${opts.color || TC.ink}">${tcEsc(l)}</text>`
+  ).join('');
+}
+// Callout band is a hard 2-line budget (140px band at locked 36px/tight type — see
+// tcCalloutBar). Guardrail (Owen ui-ux review, finding 6): a 3rd line silently clips under
+// the footer instead of erroring, which is how #14/#42 shipped broken. Throw instead so a
+// future card that overflows fails loudly at render time rather than shipping invisible.
+function tcCallout(text, x, y, opts) {
+  opts = opts || {};
+  const maxChars = tcKChars(opts.maxChars || 40, opts.kid);
+  const lines = tcWrap(text, maxChars);
+  if (lines.length > 2) {
+    throw new Error(`tcCallout overflow: "${text}" wraps to ${lines.length} lines at maxChars=${maxChars} (2-line budget). Trim the copy.`);
+  }
+  const lh = tcK(42, opts.kid);
+  return lines.map((l, i) =>
+    `<text x="${x}" y="${y + i * lh}" font-family="Archivo,sans-serif" font-weight="600" font-size="${tcK(36,opts.kid)}" letter-spacing="-0.5" fill="${TC.onInk}">${tcEsc(l)}</text>`
+  ).join('');
+}
+function tcFooterLockup(rightLabel) {
+  const y = BAND.footerTop + 38;
+  return `
+    <text x="${TC_SAFE}" y="${y}" font-family="Archivo,sans-serif" font-weight="600" font-size="20" letter-spacing="6" fill="${TC.ink70}">WRENHOUSE GOLF</text>
+    ${rightLabel ? `<text x="${TC_W - TC_SAFE}" y="${y}" text-anchor="end" font-family="Archivo,sans-serif" font-weight="600" font-size="20" letter-spacing="6" fill="${TC.ink70}">${tcEsc(String(rightLabel).toUpperCase())}</text>` : ''}
+  `;
+}
+// footnote role (deviation #4): 26px, ink-70, for caveats
+function tcFootnote(text, x, y, opts) {
+  opts = opts || {};
+  const maxChars = tcKChars(opts.maxChars || 60, opts.kid);
+  const lh = tcK(32, opts.kid);
+  const lines = tcWrap(text, maxChars);
+  return lines.map((l, i) =>
+    `<text x="${x}" y="${y + i * lh}" font-family="Archivo,sans-serif" font-weight="500" font-size="${tcK(26,opts.kid)}" fill="${TC.ink70}">${tcEsc(l)}</text>`
+  ).join('');
+}
+
+/* ── glyph set (bespoke inline SVG; extends emblem() from spinvibes-kid/index.html) ──
+   Returns a <g> positioned so (0,0) is the glyph's natural origin; caller wraps in
+   <g transform="translate(x,y)">. Sizes are authored near 24-unit viewbox scale,
+   the emblem() note that "glyph strokes at card scale render ~5px not 2.8px" is
+   applied here directly (these are drawn straight at card scale, not re-scaled). */
+function tcGlyph(name, color, size) {
+  const z = size || 32;
+  const s = `stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
+  switch (name) {
+    case 'check':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M4 12.5 L9.5 18 L20 5" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+    case 'x':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M5 5 L19 19 M19 5 L5 19" stroke="${color}" stroke-width="2.8" stroke-linecap="round"/></svg>`;
+    case 'chevron-right':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M8 4 L17 12 L8 20" ${s}/></svg>`;
+    case 'flag':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><line x1="7" y1="3" x2="7" y2="21" stroke="${color}" stroke-width="2.2"/><path d="M7 4.2 h10 l-3 3.4 3 3.4 h-10" fill="${color}"/></svg>`;
+    case 'club-hybrid':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M4 4 L14 17" stroke="${color}" stroke-width="1.8"/><path d="M13 15.5 c2.5-1.4 5.2-0.4 5.7 1.6 c0.5 2-1.7 3.6-4.3 3.1 c-2-0.4-3.4-2.2-2.8-3.9 c0.3-0.9 0.8-1.4 1.4-0.8z" fill="${color}"/></svg>`;
+    case 'sand':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M3 15 q3-3 6 0 t6 0 t6 0" stroke="${color}" stroke-width="1.8" fill="none"/><path d="M3 19 q3-3 6 0 t6 0 t6 0" stroke="${color}" stroke-width="1.8" fill="none"/></svg>`;
+    case 'gauge':
+      // v2 (Owen ui-ux review, 2026-07-30): the original open-bottomed semicircle read as
+      // a croquet hoop. Closed base kills that read; three tick marks read as gauge marks.
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24">
+        <path d="M4 16 A8 8 0 0 1 20 16" ${s}/>
+        <line x1="4" y1="16" x2="20" y2="16" stroke="${color}" stroke-width="2"/>
+        <line x1="12" y1="16" x2="16.5" y2="9.5" stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="12" cy="16" r="2" fill="${color}"/>
+        <line x1="6.5" y1="12.5" x2="8" y2="14" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="12" y1="8" x2="12" y2="10" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="17.5" y1="12.5" x2="16" y2="14" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>`;
+    case 'arc-draw':
+      return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M4 18 Q14 18 18 8" stroke="${color}" stroke-width="2.2" fill="none" stroke-dasharray="3 2"/><path d="M15 6 l3 2 l-1 3" fill="none" stroke="${color}" stroke-width="2"/></svg>`;
+    default:
+      return '';
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TIP CARDS — wren mascot + golfer figure construction
+   Per Golf/TIP-CARDS-VISUAL-SPEC.md "Wren mascot" + "Golfer figure construction"
+   sections. Golfer figure poses below use the EXACT numeric pose recipes in the
+   spec (card #6 profile address, card #9 face-on transition). The wren has no
+   numeric recipe in the spec (only prose) — this is an original bespoke build
+   satisfying every constraint in that prose (teardrop body, fanned tail angle,
+   closed-leaf wing, eye+catchlight, ball ahead of beak, brass palette), not a
+   byte-for-Byte reproduction of the s68 chat-transcript version (unavailable to
+   this build). Flagged in the coder handoff.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── WREN — adult (side profile, presenter) ──
+   facing: 1 = faces +x (right), -1 = faces -x (left). scale: 1 = ~180px hero, ~0.43 = ~78px banner. */
+function wrenAdult(cx, cy, scale, facing) {
+  facing = facing || -1; // default: facing left/target, "ball ahead of the beak"
+  const s = scale || 1;
+  const f = facing;
+  return `
+  <g transform="translate(${cx},${cy}) scale(${f * s},${s})">
+    <!-- tail: fan of 4 wedges, cocked ~52 deg up-and-back (back = +x, away from facing dir).
+         Negative rotation: SVG +y is down, so a positive angle here swept the tail DOWN,
+         not up-and-back as spec'd — fixed per Owen ui-ux review, finding 8. -->
+    <g transform="rotate(-52)">
+      <path d="M0,0 L38,-5 L46,2 L36,7 Z" fill="${TC.brassMid}"/>
+      <path d="M0,0 L40,4 L48,10 L36,14 Z" fill="${TC.brass}"/>
+      <path d="M0,0 L36,12 L42,20 L30,20 Z" fill="${TC.brassMid}"/>
+    </g>
+    <!-- body: teardrop, plump, not an ellipse -->
+    <path d="M -6,-4
+             C -22,-14 -34,-6 -34,6
+             C -34,20 -18,30 2,28
+             C 24,26 34,12 30,-2
+             C 27,-13 12,-16 -6,-4 Z" fill="${TC.brass}"/>
+    <!-- wing: closed leaf along the flank (no open arc, avoid the "smile" read) -->
+    <path d="M -14,2 C -6,-6 8,-6 14,4 C 6,10 -6,10 -14,2 Z" fill="${TC.brassMid}"/>
+    <!-- legs + feet (adult keeps legs; kid gets feet-ovals instead) -->
+    <line x1="-2" y1="27" x2="-4" y2="38" stroke="${TC.brassDark}" stroke-width="2.4" stroke-linecap="round"/>
+    <line x1="8" y1="27" x2="7" y2="38" stroke="${TC.brassDark}" stroke-width="2.4" stroke-linecap="round"/>
+    <ellipse cx="-6" cy="39" rx="5" ry="2.2" fill="${TC.brassDark}"/>
+    <ellipse cx="9" cy="39" rx="5" ry="2.2" fill="${TC.brassDark}"/>
+    <!-- head + beak -->
+    <circle cx="-24" cy="-14" r="13" fill="${TC.brass}"/>
+    <path d="M -36,-14 L -46,-11 L -36,-8 Z" fill="${TC.brassDark}"/>
+    <!-- single eye, ink, cream catchlight offset up-right -->
+    <circle cx="-26" cy="-17" r="3.2" fill="${TC.ink}"/>
+    <circle cx="-25" cy="-18.3" r="1" fill="${TC.cream || '#F5F1E6'}"/>
+  </g>`;
+}
+
+/* ── WREN — kid (3/4 front-facing presenter): bigger head, two eyes, feet-ovals not legs,
+   tail cocked steeper ~56 deg. Nothing crosses the face-clear zone (head silhouette). ── */
+function wrenKid(cx, cy, scale) {
+  const s = scale || 1;
+  return `
+  <g transform="translate(${cx},${cy}) scale(${s},${s})">
+    <!-- negative rotation: SVG +y is down, tail sweeps up-and-back, not down (Owen ui-ux review, finding 8) -->
+    <g transform="rotate(-56) translate(2,10)">
+      <path d="M0,0 L30,-4 L37,3 L28,7 Z" fill="${TC.brassMid}"/>
+      <path d="M0,0 L32,5 L38,11 L27,13 Z" fill="${TC.brass}"/>
+    </g>
+    <!-- body: rounder teardrop, front-on -->
+    <path d="M 0,-4
+             C -20,-10 -26,6 -20,20
+             C -14,32 14,32 20,20
+             C 26,6 20,-10 0,-4 Z" fill="${TC.brass}"/>
+    <!-- flank leaves, symmetric, small (front-facing, so both sides show a hint of wing) -->
+    <path d="M -18,8 C -12,2 -6,4 -6,10 C -12,14 -18,14 -18,8 Z" fill="${TC.brassMid}"/>
+    <path d="M 18,8 C 12,2 6,4 6,10 C 12,14 18,14 18,8 Z" fill="${TC.brassMid}"/>
+    <!-- feet ovals, not legs -->
+    <ellipse cx="-8" cy="33" rx="7" ry="3" fill="${TC.brassDark}"/>
+    <ellipse cx="8" cy="33" rx="7" ry="3" fill="${TC.brassDark}"/>
+    <!-- head: bigger relative to body, two eyes -->
+    <circle cx="0" cy="-22" r="17" fill="${TC.brass}"/>
+    <path d="M 0,-8 L -5,-2 L 5,-2 Z" fill="${TC.brassDark}"/>
+    <circle cx="-6" cy="-25" r="3.4" fill="${TC.ink}"/>
+    <circle cx="6" cy="-25" r="3.4" fill="${TC.ink}"/>
+    <circle cx="-5" cy="-26.3" r="1.1" fill="${TC.cream || '#F5F1E6'}"/>
+    <circle cx="7" cy="-26.3" r="1.1" fill="${TC.cream || '#F5F1E6'}"/>
+  </g>`;
+}
+
+/* ── GOLFER FIGURE — profile / down-the-line address pose (card #6 recipe, U=62) ──
+   Coordinates are the spec's literal pose recipe (section "Pose recipe — profile
+   address"), CORRECTED 2026-07-30 by Owen/ui-ux QA follow-up: the original arm
+   (elbow collinear with shoulder — a spec violation, "a limb drawn as one straight
+   segment") and the head/neck/pelvis attachment (no visible neck gap, waist gap too
+   tight) are fixed here. Every profile-pose card (#1, #6) inherits this correction.
+   RH facing left (target to the left), mirror wholesale for LH-specific use.
+   opts.twoHandGrip: renders the hand as two circles (lead + trail) instead of one,
+   for #1 "Grip pressure" — same pose, a grip-detail variant, per Owen's spec note
+   that grip pressure is honestly checked at address so the fix is detail, not a
+   new skeleton. */
+function golferProfileAddress(originX, originY, opts) {
+  opts = opts || {};
+  originX = originX || 0; originY = originY || 0;
+  const T = (x, y) => [x + originX, y + originY];
+  const [ax, ay] = T(562, 752);   // ankle
+  const [kx, ky] = T(548, 652);   // knee
+  const [hx, hy] = T(584, 548);   // hip
+  const [shx, shy] = T(524, 436); // shoulder (corrected)
+  const [hdx, hdy] = T(510, 382); // head center (corrected)
+  const [ex, ey] = T(530, 516);   // elbow (corrected — 22deg bend, was collinear)
+  const [hcx, hcy] = T(508, 583); // lead hand circle (corrected)
+  const [tcx, tcy] = T(512, 594); // trail hand circle (twoHandGrip only)
+  // far arm: explicit corrected coordinates, not a uniform offset of the near arm
+  const [fshx, fshy] = T(539, 439);
+  const [fex, fey] = T(545, 519);
+  // far-hand endpoint: base (519,587); in twoHandGrip mode it ends at the trail
+  // hand instead (per spec, "far arm ends at the trail hand") — trail hand shifted
+  // by the same (+11,+4) offset the base far-hand carries relative to the lead
+  // hand, since the spec doesn't give an explicit far-trail coordinate and the far
+  // arm renders at 60% opacity mostly occluded by the two opaque near-hand circles
+  // anyway (judgment call, flagged in the handoff).
+  const [fhcx, fhcy] = opts.twoHandGrip ? T(523, 598) : T(519, 587);
+  const [shaftX1, shaftY1] = T(505, 577); // shaft start moves with the corrected hand
+  const farOff = 15;
+  const legStroke = 17, armStroke = 15;
+  const handCircles = opts.twoHandGrip
+    ? `<circle cx="${hcx}" cy="${hcy}" r="12" fill="${TC.onInk}"/><circle cx="${tcx}" cy="${tcy}" r="11" fill="${TC.onInk}"/>`
+    : `<circle cx="${hcx}" cy="${hcy}" r="12" fill="${TC.onInk}"/>`;
+  return `
+  <g>
+    <!-- far leg + far arm, 60% opacity, drawn first (behind) -->
+    <polyline points="${hx+farOff},${hy} ${kx+farOff},${ky} ${ax+farOff},${ay}" fill="none" stroke="${TC.onInk60}" stroke-width="${legStroke}" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${fshx},${fshy} ${fex},${fey} ${fhcx},${fhcy}" fill="none" stroke="${TC.onInk60}" stroke-width="${armStroke}" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- club shaft (behind hands, cream scene linework) + blade + ball -->
+    <line x1="${shaftX1}" y1="${shaftY1}" x2="${originX+430}" y2="${originY+748}" stroke="${TC.onInk}" stroke-width="6" stroke-linecap="round"/>
+    <path d="M ${originX+430},${originY+748} l -38,10 l 4,14 l 38,-10 Z" fill="${TC.onInk}"/>
+    <circle cx="${originX+392}" cy="${originY+760}" r="11" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.5"/>
+
+    <!-- torso: TWO blocks, waist gap between (field shows through) — corrected chest
+         (back edge now actually parallels the 29deg spine) + pelvis (closes the
+         waist to ~10px, contains the hip joint, keeps the butt bulge) -->
+    <path d="M ${originX+506},${originY+418}
+             C ${originX+488},${originY+436} ${originX+486},${originY+474} ${originX+502},${originY+502}
+             L ${originX+588},${originY+480}
+             L ${originX+556},${originY+422}
+             Z" fill="${TC.onInk}"/>
+    <path d="M ${originX+536},${originY+506}
+             C ${originX+518},${originY+512} ${originX+510},${originY+528} ${originX+516},${originY+546}
+             C ${originX+522},${originY+562} ${originX+550},${originY+570} ${originX+580},${originY+564}
+             C ${originX+610},${originY+558} ${originX+632},${originY+540} ${originX+626},${originY+514}
+             C ${originX+620},${originY+494} ${originX+566},${originY+492} ${originX+536},${originY+506} Z" fill="${TC.onInk}"/>
+
+    <!-- near leg + near arm (main, full opacity) -->
+    <polyline points="${hx},${hy} ${kx},${ky} ${ax},${ay}" fill="none" stroke="${TC.onInk}" stroke-width="${legStroke}" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- foot lozenge, ~1.05U long -->
+    <line x1="${ax-33}" y1="${ay+3}" x2="${ax+33}" y2="${ay+3}" stroke="${TC.onInk}" stroke-width="16" stroke-linecap="round"/>
+    <polyline points="${shx},${shy} ${ex},${ey} ${hcx},${hcy}" fill="none" stroke="${TC.onInk}" stroke-width="${armStroke}" stroke-linecap="round" stroke-linejoin="round"/>
+    ${handCircles}
+
+    <!-- head, ~7px neck gap above the chest top edge -->
+    <circle cx="${hdx}" cy="${hdy}" r="31" fill="${TC.onInk}"/>
+  </g>`;
+}
+
+/* ── GOLFER FIGURE — face-on transition sequence (card #9 recipe, U=44, 4 frames) ──
+   Local coordinate origin = feet baseline (0,0) per frame; caller translates each
+   frame to its slot. Rotation grammar: chest & pelvis rotate about their own pivots;
+   pelvis also gets a small target-ward (−x) "bump" translate, capped at 8px. */
+const TC9_FRAMES = [
+  { label: 'Top',         chest: -16, pelvis: 2,  bump: 0,  hands: [38, -291],  note: 'lag set, hands high trail-side' },
+  { label: 'Hips fire',   chest: -14, pelvis: 12, bump: -6, hands: [30, -286],  note: 'belt line leads the arms' },
+  { label: 'Arms drop',   chest: -6,  pelvis: 14, bump: -8, hands: [18, -186],  note: 'lag still held, club stays up' },
+  { label: 'Club arrives',chest: 4,   pelvis: 16, bump: -8, hands: [-38, -160], note: 'hands ahead of the clubhead' }
+];
+function golferFaceOnFrame(frameIndex, originX, originY) {
+  const f = TC9_FRAMES[frameIndex];
+  const ox = originX || 0, oy = originY || 0;
+  const T = (x, y) => `${x + ox},${y + oy}`;
+  const [hx, hy] = f.hands;
+  // ball fixed target-side every frame
+  const ball = `<circle cx="${ox - 30}" cy="${oy - 8}" r="8" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.2"/>`;
+  // legs: symmetric two-leg figure (unaffected by chest/pelvis rotation — grounded)
+  const legs = `
+    <polyline points="${T(-20,-150)} ${T(-26,-86)} ${T(-24,-12)}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${T(20,-150)} ${T(26,-86)} ${T(24,-12)}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="${ox-42}" y1="${oy-6}" x2="${ox-14}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>
+    <line x1="${ox+14}" y1="${oy-6}" x2="${ox+42}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>
+  `;
+  // pelvis block: rect(-32,-190,64,42,rx16), rotate about (0,-170) local (=ox,oy-170), plus bump translate
+  const pelvisPivotY = oy - 170;
+  const pelvis = `
+    <g transform="translate(${f.bump},0) rotate(${f.pelvis} ${ox} ${pelvisPivotY})">
+      <rect x="${ox-32}" y="${oy-190}" width="64" height="42" rx="16" fill="${TC.onInk}"/>
+      <line x1="${ox-30}" y1="${oy-190}" x2="${ox+30}" y2="${oy-190}" stroke="${TC.ink}" stroke-width="4"/>
+    </g>`;
+  // chest trapezoid: top +-40 at y -266..-256, bottom +-30 at y -206..-196, rotate about (0,-228)
+  const chestPivotY = oy - 228;
+  const chest = `
+    <g transform="rotate(${f.chest} ${ox} ${chestPivotY})">
+      <path d="M ${ox-40},${oy-266} L ${ox+40},${oy-256} L ${ox+30},${oy-196} L ${ox-30},${oy-206} Z" fill="${TC.onInk}"/>
+      <line x1="${ox-38}" y1="${oy-262}" x2="${ox+38}" y2="${oy-253}" stroke="${TC.ink}" stroke-width="4"/>
+    </g>`;
+  // head: fixed all frames (steady head)
+  const head = `<circle cx="${ox}" cy="${oy-296}" r="22" fill="${TC.onInk}"/>`;
+  // arms: shoulder -> elbow -> hand joint chain, restored per Owen ui-ux review (this frame
+  // set previously shipped legs only — dropped when generalizing from the original #9
+  // example, which had this chain). Shoulder tracks the chest's own rotation (same pivot,
+  // computed by hand since the arm needs to land on the hand position below, which is
+  // itself defined in the un-rotated origin frame, not inside the chest's <g>). Elbow is
+  // the bend point ~55% of the way to the hand, offset perpendicular for a natural flex —
+  // same shoulder/elbow/hand construction golferProfileAddress uses for card #6.
+  const chestRad = (f.chest * Math.PI) / 180;
+  const shoulderPreX = 0, shoulderPreY = (oy - 260) - chestPivotY;
+  const shoulderX = ox + shoulderPreX * Math.cos(chestRad) - shoulderPreY * Math.sin(chestRad);
+  const shoulderY = chestPivotY + shoulderPreX * Math.sin(chestRad) + shoulderPreY * Math.cos(chestRad);
+  const handX = ox + hx, handY = oy + hy;
+  const armDx = handX - shoulderX, armDy = handY - shoulderY;
+  const armLen = Math.sqrt(armDx * armDx + armDy * armDy) || 1;
+  const elbowX = shoulderX + armDx * 0.55 + (-armDy / armLen) * 18;
+  const elbowY = shoulderY + armDy * 0.55 + (armDx / armLen) * 18;
+  const arms = `<polyline points="${shoulderX.toFixed(1)},${shoulderY.toFixed(1)} ${elbowX.toFixed(1)},${elbowY.toFixed(1)} ${handX},${handY}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
+  // hands + shaft, drawn relative to frame's hand position; frame 1's shaft draws BEHIND head
+  const handCircle = `<circle cx="${ox+hx}" cy="${oy+hy}" r="10" fill="${TC.onInk}"/>`;
+  let shaft = '';
+  if (frameIndex === 0) {
+    // shaft behind head, toward target (drawn before head so head overlaps it)
+    shaft = `<line x1="${ox+hx}" y1="${oy+hy}" x2="${ox-46}" y2="${oy-330}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+  } else if (frameIndex === 3) {
+    // forward shaft lean: clubhead ahead of / at the ball, hands still trailing it slightly less
+    shaft = `<line x1="${ox+hx}" y1="${oy+hy}" x2="${ox-30}" y2="${oy-8}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+  } else {
+    shaft = `<line x1="${ox+hx}" y1="${oy+hy}" x2="${ox+hx-40}" y2="${oy+hy+70}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+  }
+  const cue = frameIndex === 1
+    ? `<path d="M ${ox-4},${oy-150} q -30,10 -50,-6" fill="none" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="2 3"/>
+       <path d="M ${ox-54},${oy-156} l -8,-4 l 2,9 Z" fill="${TC.onInk}"/>`
+    : (frameIndex === 2 ? `<path d="M ${ox+10},${oy-190} q -10,20 -4,40" fill="none" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="2 3"/>` : '');
+
+  return frameIndex === 0
+    ? `<g>${legs}${shaft}${pelvis}${chest}${arms}${head}${handCircle}${ball}${cue}</g>`
+    : `<g>${legs}${pelvis}${chest}${arms}${head}${shaft}${handCircle}${ball}${cue}</g>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TIP CARDS — pose + re-templating follow-up (Owen / ui-ux, 2026-07-30)
+   Implements "Pose + re-templating follow-up" in TIP-CARDS-VISUAL-SPEC.md:
+   8 new DIAGRAM-POSITION poses (Bucket A) + 8 re-templated cards (Bucket B).
+
+   ARM-VOCABULARY RECONCILIATION (coordination flag from Owen, resolved here):
+   the face-on primitives below (faceOnArm/faceOnHands/faceOnLegs/faceOnPelvis/
+   faceOnChest/faceOnHead) use the IDENTICAL construction golferFaceOnFrame
+   already uses for the #9 sequence — stroke-width 11 round-capped limb
+   polylines, r22 head, ink-on-onInk shoulder/belt lines, same pelvis/chest
+   pivot points (0,-170)/(0,-228). New face-on poses are drawn with these same
+   primitives (parameterized instead of frame-hardcoded), so #9's frames and
+   every new face-on card share one arm style, not two. The one difference —
+   new-pose arms take literal final joint coordinates per shared decision 4
+   ("they do not inherit the [chest/pelvis] rotations") instead of #9's
+   computed-from-rotation shoulder point — is a simplification available
+   because the new spec gives explicit coordinates; it does not change the
+   rendered stroke width, cap style, or hand-circle treatment.
+   ════════════════════════════════════════════════════════════════════ */
+function faceOnLegs(ox, oy) {
+  return `
+    <polyline points="${ox-20},${oy-150} ${ox-26},${oy-86} ${ox-24},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${ox+20},${oy-150} ${ox+26},${oy-86} ${ox+24},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  `;
+}
+function faceOnFootDefault(ox, oy, side) {
+  // side: -1 = lead (near -x), 1 = trail (near +x)
+  const x1 = side < 0 ? ox - 42 : ox + 14, x2 = side < 0 ? ox - 14 : ox + 42;
+  return `<line x1="${x1}" y1="${oy-6}" x2="${x2}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>`;
+}
+function faceOnPelvis(ox, oy, deg, bump) {
+  const pivotY = oy - 170;
+  return `
+    <g transform="translate(${bump||0},0) rotate(${deg||0} ${ox} ${pivotY})">
+      <rect x="${ox-32}" y="${oy-190}" width="64" height="42" rx="16" fill="${TC.onInk}"/>
+      <line x1="${ox-30}" y1="${oy-190}" x2="${ox+30}" y2="${oy-190}" stroke="${TC.ink}" stroke-width="4"/>
+    </g>`;
+}
+function faceOnChest(ox, oy, deg) {
+  const pivotY = oy - 228;
+  return `
+    <g transform="rotate(${deg||0} ${ox} ${pivotY})">
+      <path d="M ${ox-40},${oy-266} L ${ox+40},${oy-256} L ${ox+30},${oy-196} L ${ox-30},${oy-206} Z" fill="${TC.onInk}"/>
+      <line x1="${ox-38}" y1="${oy-262}" x2="${ox+38}" y2="${oy-253}" stroke="${TC.ink}" stroke-width="4"/>
+    </g>`;
+}
+function faceOnHead(ox, oy, dx, dy) {
+  return `<circle cx="${ox+(dx||0)}" cy="${oy-296+(dy||0)}" r="22" fill="${TC.onInk}"/>`;
+}
+// arms: chain = [[x,y],[x,y],[x,y]] local-relative to (ox,oy); final coordinates, not
+// nested inside the chest/pelvis rotation groups (shared decision 4).
+function faceOnArm(ox, oy, chain) {
+  const pts = chain.map(([x,y]) => `${ox+x},${oy+y}`).join(' ');
+  return `<polyline points="${pts}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+function faceOnHands(ox, oy, lead, trail, rLead, rTrail) {
+  let s = `<circle cx="${ox+lead[0]}" cy="${oy+lead[1]}" r="${rLead||9}" fill="${TC.onInk}"/>`;
+  if (trail) s += `<circle cx="${ox+trail[0]}" cy="${oy+trail[1]}" r="${rTrail||9}" fill="${TC.onInk}"/>`;
+  return s;
+}
+function faceOnShaft(ox, oy, x1, y1, x2, y2) {
+  return `<line x1="${ox+x1}" y1="${oy+y1}" x2="${ox+x2}" y2="${oy+y2}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+}
+function faceOnBall(ox, oy, x, y, r) {
+  return `<circle cx="${ox+x}" cy="${oy+y}" r="${r||8}" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.2"/>`;
+}
+
+/* ── Base face-on address pose (local U=44 grammar), chest 0 / pelvis 0 / bump 0 —
+   shared UNMODIFIED by #4 (train tracks), #40 (towel drill) and #23 (clock drill). ── */
+function golferFaceOnAddressBase(ox, oy) {
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${faceOnFootDefault(ox, oy, -1)}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 0, 0)}
+    ${faceOnChest(ox, oy, 0)}
+    ${faceOnArm(ox, oy, [[-34,-250],[-22,-206],[-5,-168]])}
+    ${faceOnArm(ox, oy, [[34,-248],[24,-204],[6,-166]])}
+    ${faceOnHead(ox, oy)}
+    ${faceOnShaft(ox, oy, -4, -166, -30, -8)}
+    ${faceOnHands(ox, oy, [-4,-166], [6,-163])}
+    ${faceOnBall(ox, oy, -30, -8, 8)}
+  `;
+}
+
+/* #4 train tracks: figure only (no shaft/ball — those retarget to the literal rails,
+   drawn in absolute card space by tcTrainTracksAbs, per the spec's non-"local" coords). */
+function golferTrainTracksHero(ox, oy) {
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${faceOnFootDefault(ox, oy, -1)}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 0, 0)}
+    ${faceOnChest(ox, oy, 0)}
+    ${faceOnArm(ox, oy, [[-34,-250],[-22,-206],[-5,-168]])}
+    ${faceOnArm(ox, oy, [[34,-248],[24,-204],[6,-166]])}
+    ${faceOnHead(ox, oy)}
+    ${faceOnHands(ox, oy, [-4,-166], [6,-163])}
+  `;
+}
+function tcTrainTracksAbs() {
+  const toeRail = `<line x1="220" y1="760" x2="940" y2="760" stroke="${TC.onInk}" stroke-width="4"/>`;
+  const ballRail = `<line x1="150" y1="792" x2="940" y2="792" stroke="${TC.onInk}" stroke-width="4"/>`;
+  const ball = `<circle cx="520" cy="788" r="10" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.5"/>`;
+  // shaft from the figure's (unrendered-locally) hand to the retargeted ball — hand computed
+  // from the base pose's hand cluster (~1,-164.5 local) at this card's scale 1.15 / origin (600,760).
+  const hx = (600 + 1 * 1.15).toFixed(1), hy = (760 - 164.5 * 1.15).toFixed(1);
+  const shaft = `<line x1="${hx}" y1="${hy}" x2="520" y2="788" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+  const flag = `<line x1="170" y1="790" x2="170" y2="600" stroke="${TC.onInk}" stroke-width="3.5"/><path d="M170,602 h26 l-8,10 8,10 h-26" fill="${TC.brass}"/>`;
+  return `${toeRail}${ballRail}${shaft}${ball}${flag}`;
+}
+
+/* #8 takeaway: ghost of address (60% opacity) + real one-piece triangle moved back,
+   chest -6deg (shoulders start), pelvis stays 0 (hip stillness is the checkpoint). */
+function golferTakeawayHero(ox, oy) {
+  const ghost = `<g opacity="0.6">
+    ${faceOnShaft(ox, oy, 0, -160, -24, -12)}
+    <path d="M ${ox-32},${oy-12} l -6,10 l 16,4 l 6,-10 Z" fill="${TC.onInk}"/>
+  </g>`;
+  const sweep = `
+    <path d="M ${ox-16},${oy-4} Q ${ox+25},${oy-14} ${ox+66},${oy-10}" fill="none" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="3 3"/>
+    <path d="M ${ox+60},${oy-13} l 9,-1 l -4,9 Z" fill="${TC.onInk}"/>`;
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${faceOnFootDefault(ox, oy, -1)}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 0, 0)}
+    ${ghost}
+    ${faceOnChest(ox, oy, -6)}
+    ${faceOnArm(ox, oy, [[-32,-248],[-18,-204],[9,-164]])}
+    ${faceOnArm(ox, oy, [[36,-246],[28,-202],[19,-160]])}
+    ${faceOnHead(ox, oy)}
+    ${faceOnShaft(ox, oy, 16, -156, 74, -16)}
+    ${faceOnHands(ox, oy, [10,-162], [18,-159])}
+    ${faceOnBall(ox, oy, -30, -8, 8)}
+    ${sweep}
+  `;
+}
+
+/* #10 impact: locked frame-4 rotation grammar (chest+4/pelvis+16/bump-8) pushed to hero
+   scale, hands ahead of the clubhead, divot in front of the ball (the "truth-teller"). */
+function golferImpactHero(ox, oy) {
+  const divot = `<path d="M ${ox-42},${oy} L ${ox-66},${oy} L ${ox-56},${oy+7} Z" fill="${TC.ink}" stroke="${TC.onInk}" stroke-width="2"/>`;
+  const weightArrow = `
+    <line x1="${ox-20}" y1="${oy-140}" x2="${ox-24}" y2="${oy-60}" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="3 3"/>
+    <path d="M ${ox-27},${oy-66} l -5,10 l 10,-2 Z" fill="${TC.onInk}"/>`;
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${faceOnFootDefault(ox, oy, -1)}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 16, -8)}
+    ${faceOnChest(ox, oy, 4)}
+    ${faceOnArm(ox, oy, [[-40,-250],[-46,-206],[-42,-166]])}
+    ${faceOnArm(ox, oy, [[32,-244],[6,-198],[-30,-160]])}
+    ${faceOnHead(ox, oy)}
+    ${faceOnShaft(ox, oy, -42, -156, -28, -8)}
+    ${faceOnHands(ox, oy, [-46,-162], [-38,-158])}
+    ${faceOnBall(ox, oy, -30, -8, 8)}
+    ${divot}
+    ${weightArrow}
+  `;
+}
+
+/* #11 finish: fully explicit chain (rotate-grammar can't reach a finish) — near-vertical
+   lead post, trail foot up on its toe, shaft drawn BEFORE chest/head (club wraps behind
+   the shoulders). No ball — the wren's own ball carries the mascot rule on this card. */
+function golferFinishHero(ox, oy) {
+  const leadLeg = `<polyline points="${ox-24},${oy-176} ${ox-28},${oy-92} ${ox-26},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const leadFoot = `<line x1="${ox-42}" y1="${oy-6}" x2="${ox-12}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>`;
+  const trailLeg = `<polyline points="${ox+8},${oy-174} ${ox-4},${oy-96} ${ox+10},${oy-26}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const trailFoot = `<line x1="${ox+10}" y1="${oy-26}" x2="${ox+16}" y2="${oy-4}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>`;
+  const pelvisPivotY = oy - 170;
+  const pelvis = `
+    <g transform="rotate(24 ${ox-12} ${pelvisPivotY})">
+      <rect x="${ox-44}" y="${oy-190}" width="64" height="42" rx="16" fill="${TC.onInk}"/>
+      <line x1="${ox-42}" y1="${oy-190}" x2="${ox+18}" y2="${oy-190}" stroke="${TC.ink}" stroke-width="4"/>
+    </g>`;
+  const chestPivotY = oy - 228;
+  const chest = `
+    <g transform="rotate(20 ${ox-10} ${chestPivotY})">
+      <path d="M ${ox-50},${oy-264} L ${ox+30},${oy-256} L ${ox+20},${oy-198} L ${ox-40},${oy-204} Z" fill="${TC.onInk}"/>
+      <line x1="${ox-48}" y1="${oy-260}" x2="${ox+28}" y2="${oy-253}" stroke="${TC.ink}" stroke-width="4"/>
+    </g>`;
+  const head = `<circle cx="${ox-14}" cy="${oy-298}" r="22" fill="${TC.onInk}"/>`;
+  const leadArm = faceOnArm(ox, oy, [[-46,-256],[-58,-292],[-36,-324]]);
+  const trailArm = faceOnArm(ox, oy, [[24,-252],[-6,-290],[-28,-318]]);
+  const hands = faceOnHands(ox, oy, [-34,-322], [-26,-318]);
+  const shaft = faceOnShaft(ox, oy, -30, -320, 52, -262);
+  return `
+    ${leadLeg}${leadFoot}${trailLeg}${trailFoot}
+    ${pelvis}
+    ${shaft}
+    ${chest}
+    ${leadArm}${trailArm}
+    ${head}
+    ${hands}
+  `;
+}
+
+/* #24 greenside bunker: figure local; the sand ellipse is explicitly "abs" in the spec
+   (a fixed patch of ground independent of the figure's own local coordinate space), so
+   it's split out and drawn before the figure by the caller. */
+function tcBunkerAbs() {
+  const cx = (380+700)/2, cy = (740+810)/2, rx = (700-380)/2, ry = (810-740)/2;
+  // Owen's spec flagged 45% as "calibrated on cream, verify on render" (new deviation 6).
+  // Render QA confirmed it: brass at 45% over kelly grass blends to a muddy olive, not
+  // sand — bumped to 85% so the patch reads as sand against the grass. Flagged in the
+  // coder handoff as a deviation from the spec's literal number.
+  return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${TC.brass}" fill-opacity="0.85" stroke="${TC.onInk}" stroke-width="3"/>`;
+}
+function golferBunkerHero(ox, oy) {
+  const leadFoot = `<line x1="${ox-44}" y1="${oy-2}" x2="${ox-18}" y2="${oy-10}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>`;
+  const openBlade = `
+    <path d="M ${ox-40},${oy-10} l -14,2 l 6,10 l 14,-6 Z" fill="${TC.onInk}"/>
+    <line x1="${ox-40}" y1="${oy-10}" x2="${ox-46}" y2="${oy-22}" stroke="${TC.onInk}" stroke-width="2.5" stroke-linecap="round"/>`;
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${leadFoot}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 0, -6)}
+    ${faceOnChest(ox, oy, 0)}
+    ${faceOnArm(ox, oy, [[-34,-250],[-22,-206],[-2,-164]])}
+    ${faceOnArm(ox, oy, [[34,-248],[24,-204],[8,-161]])}
+    ${faceOnHead(ox, oy)}
+    ${openBlade}
+    ${faceOnShaft(ox, oy, -2, -164, -40, -10)}
+    ${faceOnHands(ox, oy, [-2,-164], [8,-161])}
+    ${faceOnBall(ox, oy, -44, -6, 8)}
+  `;
+}
+
+/* #39 impact bag: drill-speed impact (less dynamic than #10's real impact), shaft buried
+   behind the bag (no blade — the bag ends the story). */
+function golferImpactBagHero(ox, oy) {
+  const bag = `<rect x="${ox-52}" y="${oy-40}" width="52" height="36" rx="10" fill="${TC.brass}" fill-opacity="0.32" stroke="${TC.onInk}" stroke-width="3"/>`;
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${faceOnFootDefault(ox, oy, -1)}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 12, -6)}
+    ${faceOnChest(ox, oy, 2)}
+    ${faceOnArm(ox, oy, [[-42,-248],[-50,-206],[-46,-166]])}
+    ${faceOnArm(ox, oy, [[30,-242],[2,-196],[-34,-160]])}
+    ${faceOnHead(ox, oy)}
+    ${faceOnShaft(ox, oy, -40, -158, -26, -30)}
+    ${bag}
+    ${faceOnHands(ox, oy, [-44,-162], [-36,-158])}
+  `;
+}
+
+/* #40 towel drill: base address pose unchanged; two open-rect towels pinned between
+   chest and arm by draw order (chest -> towels -> arms). */
+function golferTowelHero(ox, oy) {
+  const towelLead = `<rect x="${ox-40}" y="${oy-244}" width="12" height="30" fill="none" stroke="${TC.onInk}" stroke-width="2.5"/>`;
+  const towelTrail = `<rect x="${ox+28}" y="${oy-242}" width="12" height="30" fill="none" stroke="${TC.onInk}" stroke-width="2.5"/>`;
+  return `
+    ${faceOnLegs(ox, oy)}
+    ${faceOnFootDefault(ox, oy, -1)}
+    ${faceOnFootDefault(ox, oy, 1)}
+    ${faceOnPelvis(ox, oy, 0, 0)}
+    ${faceOnChest(ox, oy, 0)}
+    ${towelLead}${towelTrail}
+    ${faceOnArm(ox, oy, [[-34,-250],[-22,-206],[-5,-168]])}
+    ${faceOnArm(ox, oy, [[34,-248],[24,-204],[6,-166]])}
+    ${faceOnHead(ox, oy)}
+    ${faceOnShaft(ox, oy, -4, -166, -30, -8)}
+    ${faceOnHands(ox, oy, [-4,-166], [6,-163])}
+    ${faceOnBall(ox, oy, -30, -8, 8)}
+  `;
+}
+
+/* #23 clock drill: base address pose (unmodified) + dashed sweep arc + 3 ghost shafts to
+   the 7/9/11 o'clock tips (numbered brass terminals land directly on the tips — see the
+   card's own `leaders`, no separate dot needed). */
+function tcClockArcAbs() {
+  const hx = 461, hy = 591;
+  const arc = `<path d="M 620,700 Q 760,560 700,532 Q 730,400 600,368" fill="none" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="4 5"/>`;
+  const ghost = (tx, ty) => `<line x1="${hx}" y1="${hy}" x2="${tx}" y2="${ty}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round" opacity="0.6"/>`;
+  return `${arc}${ghost(640,676)}${ghost(700,532)}${ghost(600,368)}`;
+}
+
+/* ── Map-tile hero (Bucket B, shared decision 7) — one cream tile floating on the ink/
+   slate/grass scene, for topics that are top-down diagrams, not body positions. ── */
+function tcMapTile() {
+  return `<rect x="72" y="330" width="936" height="460" rx="20" fill="${TC.cream}"/>`;
+}
+function mapFlagAt(cx, cy, h) {
+  h = h || 40;
+  return `<g transform="translate(${cx},${cy})"><line x1="0" y1="0" x2="0" y2="${-h}" stroke="${TC.ink}" stroke-width="2.5"/><path d="M0,${-h} h18 l-6,7 6,7 h-18" fill="${TC.brass}"/></g>`;
+}
+function mapGreenTopdown() {
+  const fringe = `<ellipse cx="540" cy="545" rx="322" ry="197" fill="${TC.kellyDeep}"/>`;
+  const green = `<ellipse cx="540" cy="545" rx="300" ry="175" fill="${TC.kelly}"/>`;
+  const cup = `<circle cx="620" cy="480" r="7" fill="${TC.ink}"/>`;
+  const chevrons = [[700,560],[640,600],[560,630]].map(([x,y]) =>
+    `<g transform="translate(${x},${y}) rotate(-35)"><path d="M -10,-8 L 0,0 L 10,-8" fill="none" stroke="${TC.ink}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>`
+  ).join('');
+  const reader = `<circle cx="500" cy="660" r="9" fill="${TC.ink}"/><line x1="500" y1="660" x2="620" y2="480" stroke="${TC.ink}" stroke-width="2" stroke-dasharray="4 4"/>`;
+  const downhill = `<path d="M 790,430 Q 660,395 622,472" fill="none" stroke="${TC.ink}" stroke-width="3" stroke-dasharray="6 5"/>`;
+  const uphill = `<path d="M 500,640 Q 560,560 618,488" fill="none" stroke="${TC.ink}" stroke-width="3" stroke-dasharray="6 5"/>`;
+  return `${tcMapTile()}${fringe}${green}${chevrons}${reader}${downhill}${uphill}${cup}${mapFlagAt(620,480,46)}`;
+}
+function mapHoleMap(id) {
+  const green = (cx,cy,rx,ry) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx+16}" ry="${ry+16}" fill="${TC.kellyDeep}"/><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${TC.kelly}"/>`;
+  const bunker = (cx,cy,r) => `<ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${r*0.65}" fill="${TC.brass}" fill-opacity="0.32"/>`;
+  const water = (cx,cy,rx,ry) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${TC.slate}"/>`;
+  const trees = (cx,cy) => [[0,0,44],[46,-30,38],[-38,26,34],[20,44,40],[-46,-20,36]]
+    .map(([dx,dy,r]) => `<circle cx="${cx+dx}" cy="${cy+dy}" r="${r}" fill="${TC.ink}"/>`).join('');
+  const ballAt = (x,y) => `<circle cx="${x}" cy="${y}" r="9" fill="${TC.cream}" stroke="${TC.ink}" stroke-width="2.5"/>`;
+  const solid = (d) => `<path d="${d}" fill="none" stroke="${TC.ink}" stroke-width="3.5"/>`;
+  const oxDashed = (d) => `<path d="${d}" fill="none" stroke="${TC.oxblood}" stroke-width="3.5" stroke-dasharray="7 6"/>`;
+  const inkDashed = (d) => `<path d="${d}" fill="none" stroke="${TC.ink}" stroke-width="3" stroke-dasharray="6 5"/>`;
+  const fairway = (d) => `<path d="${d}" fill="none" stroke="${TC.kelly}" stroke-width="140" stroke-linecap="round"/>`;
+  let content = '';
+  if (id === 30) {
+    content = `
+      ${fairway('M 300,660 Q 500,560 700,470')}
+      ${green(760,450,115,75)}
+      ${bunker(645,538,55)}
+      ${solid('M 300,660 Q 520,540 758,448')}
+      ${oxDashed('M 300,660 Q 470,600 640,535')}
+      <circle cx="640" cy="535" r="6" fill="${TC.oxblood}"/>
+      <circle cx="758" cy="448" r="6" fill="${TC.ink}"/>
+      ${ballAt(300,660)}${mapFlagAt(760,450,40)}`;
+  } else if (id === 31) {
+    content = `
+      ${fairway('M 280,700 Q 500,600 760,500')}
+      ${green(720,470,110,72)}
+      ${water(500,470,90,60)}
+      ${bunker(660,565,42)}
+      <ellipse cx="870" cy="480" rx="70" ry="52" fill="${TC.kellyDeep}"/>
+      <ellipse cx="870" cy="480" rx="78" ry="60" fill="none" stroke="${TC.ink}" stroke-width="2.5" stroke-dasharray="5 5"/>
+      ${solid('M 280,700 Q 540,610 760,500')}
+      <circle cx="760" cy="500" r="6" fill="${TC.ink}"/>
+      ${ballAt(280,700)}${mapFlagAt(720,470,40)}`;
+  } else if (id === 32) {
+    content = `
+      ${fairway('M 470,610 Q 545,505 615,412')}
+      ${green(620,400,100,66)}
+      ${trees(270,545)}
+      ${oxDashed('M 285,555 Q 400,500 600,405')}
+      <path d="M 424,449 l 12,12 M 436,449 l -12,12" stroke="${TC.oxblood}" stroke-width="3.5" stroke-linecap="round"/>
+      ${solid('M 285,555 Q 380,600 470,610')}
+      ${inkDashed('M 470,610 Q 600,500 615,412')}
+      ${ballAt(285,555)}${mapFlagAt(620,400,40)}`;
+  }
+  return `${tcMapTile()}${content}`;
+}
+function mapStationTopdown() {
+  const stick1 = `<line x1="240" y1="635" x2="880" y2="455" stroke="${TC.brass}" stroke-width="8" stroke-linecap="round"/>`;
+  const stick2 = `<line x1="200" y1="720" x2="840" y2="540" stroke="${TC.brass}" stroke-width="8" stroke-linecap="round"/>`;
+  const ball = `<circle cx="430" cy="600" r="10" fill="${TC.cream}" stroke="${TC.ink}" stroke-width="2.5"/>`;
+  const blade = `<rect x="424" y="594" width="12" height="12" fill="none" stroke="${TC.ink}" stroke-width="2.5" transform="rotate(-18 430 600)"/>`;
+  const slope = (Math.atan2(455-635, 880-240) * 180 / Math.PI).toFixed(1);
+  const feet = [[470,668],[560,642]].map(([x,y]) =>
+    `<ellipse cx="${x}" cy="${y}" rx="20" ry="10" fill="${TC.ink}" transform="rotate(${slope} ${x} ${y})"/>`
+  ).join('');
+  return `${tcMapTile()}${stick1}${stick2}${mapFlagAt(905,415,40)}${ball}${blade}${feet}`;
+}
+
+/* ── Numbered brass leader terminals (shared decision 1) — replaces the old anonymous-
+   dot rendering. Brass dot on the feature + brass line + terminal brass circle w/ an ink
+   numeral, matching the numbered checkpoint row 1:1. ── */
+function tcLeaders(leaders, lh) {
+  return (leaders || []).map((l, i) => {
+    const x = lh ? (TC_W - l.x) : l.x;
+    const lx = lh ? (TC_W - l.lx) : l.lx;
+    return `
+      <circle cx="${x}" cy="${l.y}" r="7" fill="${TC.brass}"/>
+      <line x1="${x}" y1="${l.y}" x2="${lx}" y2="${l.ly}" stroke="${TC.brass}" stroke-width="2.5"/>
+      <circle cx="${lx}" cy="${l.ly}" r="16" fill="${TC.brass}"/>
+      <text x="${lx}" y="${l.ly+7}" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="800" font-size="20" fill="${TC.ink}">${i+1}</text>
+    `;
+  }).join('');
+}
+// Scene-scale wren, restored per shared decision 6 — adult wren + a ball ahead of the
+// beak, positioned clear of every Bucket A pose's geometry (all built within x<=680).
+function tcSceneWren() {
+  return `${wrenAdult(880, 742, 1, -1)}<circle cx="810" cy="758" r="9" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.5"/>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TIP CARDS — six template render functions
+   One per format per Golf/TIP-CARDS-VISUAL-SPEC.md "Six card templates" + the
+   8 documented deviations. Each takes a data entry (see tip-cards-data.js
+   schema) and an { kid:boolean } opts flag, returns a complete 1080x1350 SVG string.
+   ════════════════════════════════════════════════════════════════════ */
+// (all names above are already top-level consts/functions in this same script — no import needed in the browser build)
+
+function tcSvgOpen() {
+  return `<svg width="${TC_W}" height="${TC_H}" viewBox="0 0 ${TC_W} ${TC_H}" xmlns="http://www.w3.org/2000/svg" font-family="Archivo,sans-serif">`;
+}
+function tcSvgClose() { return `</svg>`; }
+
+// Banner: eyebrow + headline + small banner wren (top-right, ~78px), shared by all six.
+function tcBanner(entry, opts) {
+  opts = opts || {};
+  const wren = opts.kid ? wrenKid(TC_W - 118, 150, 0.46) : wrenAdult(TC_W - 118, 140, 0.43, -1);
+  return `
+    ${tcEyebrow(entry.eyebrow, TC_SAFE, 132, null, opts.kid)}
+    ${tcHeadline(entry.headline, TC_SAFE, 214, { maxChars: opts.headlineMaxChars || 20, kid: opts.kid })}
+    ${wren}
+  `;
+}
+// Callout band is 140px tall (1150-1290). At locked 36px/tight callout type, that's a
+// hard 2-line budget — verified by render, not assumed. Copy in tip-cards-data.js is
+// trimmed to fit; tcCallout() itself now throws (rather than silently clipping) if a
+// string doesn't fit — see that function for the guardrail.
+function tcCalloutBar(text, opts) {
+  opts = opts || {};
+  const y0 = BAND.calloutTop;
+  return `
+    <rect x="${TC_SAFE}" y="${y0 + 30}" width="6" height="${(BAND.calloutBottom - y0) - 60}" fill="${TC.brass}"/>
+    <clipPath id="tcCalloutClip"><rect x="0" y="${y0}" width="${TC_W}" height="${BAND.calloutBottom - y0}"/></clipPath>
+    <g clip-path="url(#tcCalloutClip)">${tcCallout(text, TC_SAFE + 34, y0 + 70, { maxChars: 42, kid: opts.kid })}</g>
+  `;
+}
+function tcFooter(rightLabel) { return tcFooterLockup(rightLabel); }
+
+/* ═══ 1. SITUATION — single hero scene, "use it when" checklist + one "not when" row ═══ */
+function renderSituationCard(entry, opts) {
+  opts = opts || {};
+  let rows = entry.useWhen || [];
+  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7
+  const notRow = entry.notWhen;
+  // Body band is 320px (830-1150). Section head + up to 3 checks + 1 "not when" row
+  // must all fit — copy in tip-cards-data.js is kept to ~1 line/row (<=52 chars) so
+  // this tight pitch (36px/row) doesn't force 2-line wraps that would overflow.
+  // maxC is the SINGLE source of truth for wrap width (already kid-scaled); tcBodyWrap
+  // below is given the raw base (52) + kid flag so it scales font-size/lineHeight/maxChars
+  // itself exactly once — passing an already-scaled maxChars in AND kid:true double-applies
+  // tcKChars, which is what caused rows to visibly overlap in kid mode during this pass's
+  // render QA (effective wrap width was ~39 chars, but the y-advance below assumed ~45).
+  // The y-advance now reads the actual line count tcWrap will produce at maxC, times the
+  // actual (kid-scaled) line height, instead of approximating from raw string length.
+  const maxC = tcKChars(52, opts.kid);
+  const rowLH = tcK(32, opts.kid);
+  let body = '';
+  let y = BAND.bodyTop + 50;
+  body += tcSectionHead('Use it when', TC_SAFE, y, false, opts.kid);
+  y += 36;
+  // Row gap tightened for kid mode only (18 -> 10): the ×1.15 kid line-height alone (32 ->
+  // 37px) pushes a fully-minimal 3-row-useWhen + 1-row-notWhen SITUATION card ~12px past
+  // the 320px body band even with every row at 1 line — found on #28 kid, the only kid
+  // SITUATION card in the set, during this pass's render QA. This buys back margin without
+  // touching content. Adult (gap stays 18) is untouched.
+  const rowGap = opts.kid ? 10 : 18;
+  rows.forEach(r => {
+    body += `<g transform="translate(${TC_SAFE},${y - 22})">${tcGlyph('check', TC.ink, 30)}</g>`;
+    body += tcBodyWrap(r, TC_SAFE + 44, y, { maxChars: 52, lineHeight: 32, kid: opts.kid });
+    y += rowLH * tcWrap(r, maxC).length + rowGap;
+  });
+  y += 8;
+  body += tcSectionHead('Not when', TC_SAFE, y, false, opts.kid);
+  y += 36;
+  body += `<g transform="translate(${TC_SAFE},${y - 22})">${tcGlyph('x', TC.oxbloodDeep, 30)}</g>`;
+  body += tcBodyWrap(notRow, TC_SAFE + 44, y, { maxChars: 52, lineHeight: 32, color: TC.oxbloodDeep, kid: opts.kid });
+  // Defensive clip (added content batch 2): a "Not when" row that wraps past 2 lines
+  // — e.g. 3 useWhen rows that each ran 2 lines, pushing this row low — was found
+  // bleeding oxblood text into the ink callout band during render QA (unreadable
+  // there). Same pattern as the CHART/SEQUENCE clip guards; hides overflow instead
+  // of letting it bleed. Copy is still trimmed to fit without relying on this.
+  const sitClip = `<clipPath id="tcSitClip"><rect x="0" y="${BAND.bodyTop}" width="${TC_W}" height="${BAND.bodyBottom-BAND.bodyTop}"/></clipPath>`;
+  body = sitClip + `<g clip-path="url(#tcSitClip)">${body}</g>`;
+
+  // hero scene: ground wren facing the ball, club laid near the ball, small brass flagstick further back.
+  // Register-correct mascot (Owen ui-ux review, finding 8 area / #28 kid finding): this
+  // template previously hardcoded the adult wren even when rendering the kid register.
+  const scene = `
+    ${opts.kid ? wrenKid(560, 700, 1) : wrenAdult(560, 700, 1, -1)}
+    <circle cx="330" cy="742" r="12" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.5"/>
+    <g transform="translate(300,660) rotate(18)">${tcGlyph('club-hybrid', TC.onInk, 70)}</g>
+    <line x1="900" y1="560" x2="900" y2="740" stroke="${TC.onInk}" stroke-width="4"/>
+    <path d="M900,562 h34 l-11,13 11,13 h-34" fill="${TC.brass}"/>
+  `;
+
+  return tcSvgOpen()
+    + tcSceneBands()
+    + tcBanner(entry, opts)
+    + scene
+    + body
+    + tcCalloutBar(entry.callout, opts)
+    + tcFooter(tcFooterLabel(entry.id, opts))
+    + tcSvgClose();
+}
+
+/* ═══ 2. COMPARE — two cream tiles in hero; table below (check/x OR neutral variant) ═══ */
+function renderCompareCard(entry, opts) {
+  opts = opts || {};
+  const variant = entry.compareVariant || 'checkx'; // 'checkx' | 'neutral'
+  const tileY = 360, tileH = 340, tileW = 420, gap = 40;
+  const lX = TC_SAFE, rX = TC_W - TC_SAFE - tileW;
+  const tiles = `
+    <rect x="${lX}" y="${tileY}" width="${tileW}" height="${tileH}" rx="20" fill="${TC.cream}"/>
+    <rect x="${rX}" y="${tileY}" width="${tileW}" height="${tileH}" rx="20" fill="${TC.cream}"/>
+    ${tcSectionHead(entry.tileLeftTitle, lX + 24, tileY + 44, false, opts.kid)}
+    ${tcSectionHead(entry.tileRightTitle, rX + 24, tileY + 44, false, opts.kid)}
+    ${tcBodyWrap(entry.tileLeftBody, lX + 24, tileY + 90, { maxChars: 30, size: 26, lineHeight: 32, kid: opts.kid })}
+    ${tcBodyWrap(entry.tileRightBody, rX + 24, tileY + 90, { maxChars: 30, size: 26, lineHeight: 32, kid: opts.kid })}
+  `;
+
+  // Columns: label (safe-left, narrow) | left value | right value (ends within the
+  // 1008 safe-right margin — measured against the longest cell text, not assumed).
+  // Row copy in tip-cards-data.js is kept to one line per cell at this width.
+  const colLabel = TC_SAFE, colLeft = TC_SAFE + 190, colRight = TC_SAFE + 540;
+  let rows = entry.rows || [];
+  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7
+  let body = '';
+  let y = BAND.bodyTop + 58;
+  rows.forEach(r => {
+    body += `<text x="${colLabel}" y="${y}" font-family="Archivo,sans-serif" font-weight="600" font-size="${tcK(24,opts.kid)}" fill="${TC.ink70}">${r.label}</text>`;
+    if (variant === 'checkx') {
+      body += `<g transform="translate(${colLeft},${y - 22})">${tcGlyph(r.left ? 'check' : 'x', r.left ? TC.ink : TC.oxbloodDeep, 28)}</g>`;
+      body += `<g transform="translate(${colRight},${y - 22})">${tcGlyph(r.right ? 'check' : 'x', r.right ? TC.ink : TC.oxbloodDeep, 28)}</g>`;
+    } else {
+      body += `<text x="${colLeft}" y="${y}" font-family="Archivo,sans-serif" font-weight="500" font-size="${tcK(24,opts.kid)}" fill="${TC.ink}">${r.left}</text>`;
+      body += `<text x="${colRight}" y="${y}" font-family="Archivo,sans-serif" font-weight="500" font-size="${tcK(24,opts.kid)}" fill="${TC.ink}">${r.right}</text>`;
+    }
+    y += 60;
+  });
+
+  return tcSvgOpen()
+    + tcSceneBands()
+    + tcBanner(entry, opts)
+    + tiles
+    + body
+    + tcCalloutBar(entry.callout, opts)
+    + tcFooter(tcFooterLabel(entry.id, opts))
+    + tcSvgClose();
+}
+
+/* ═══ 3. DIAGRAM-POSITION — one frozen figure (or map tile), numbered leader terminals,
+   3 numbered rows. Per-card poses/re-templating: Owen ui-ux "Pose + re-templating
+   follow-up" pass, 2026-07-30 — see entry.heroKind for the per-card hero builder. ═══ */
+function renderDiagramPositionCard(entry, opts) {
+  opts = opts || {};
+  const lh = opts.hand === 'L';
+  const heroKind = entry.heroKind || 'profile';
+  const mirrorOpen = lh ? `<g transform="translate(${TC_W},0) scale(-1,1)">` : '';
+  const mirrorClose = lh ? `</g>` : '';
+
+  let heroAbs = '';    // absolute card-space hero markup — never mirrored/scaled
+  let heroLocal = '';  // figure markup, wrapped in the LH mirror group when needed
+  let sceneWren = tcSceneWren();
+  let isTile = false;
+
+  switch (heroKind) {
+    case 'profileGrip':
+      heroLocal = golferProfileAddress(0, 0, { twoHandGrip: true });
+      break;
+    case 'faceOnTrainTracks':
+      heroLocal = `<g transform="translate(600,760) scale(1.15)">${golferTrainTracksHero(0,0)}</g>`;
+      heroAbs = tcTrainTracksAbs();
+      // Rails + retargeted ball fully occupy this card's ground plane (the ball rail
+      // literally passes through the standard wren spot) — no clean room for the scene
+      // wren here, same logic as the tile-hero exemption. Flagged in the coder handoff.
+      sceneWren = '';
+      break;
+    case 'faceOnTakeaway':
+      heroLocal = `<g transform="translate(540,772) scale(1.35)">${golferTakeawayHero(0,0)}</g>`;
+      break;
+    case 'faceOnImpact':
+      heroLocal = `<g transform="translate(540,772) scale(1.35)">${golferImpactHero(0,0)}</g>`;
+      break;
+    case 'faceOnFinish':
+      heroLocal = `<g transform="translate(540,772) scale(1.35)">${golferFinishHero(0,0)}</g>`;
+      break;
+    case 'faceOnBunker':
+      heroAbs = tcBunkerAbs();
+      heroLocal = `<g transform="translate(540,772) scale(1.35)">${golferBunkerHero(0,0)}</g>`;
+      break;
+    case 'faceOnImpactBag':
+      heroLocal = `<g transform="translate(540,772) scale(1.35)">${golferImpactBagHero(0,0)}</g>`;
+      break;
+    case 'faceOnTowel':
+      heroLocal = `<g transform="translate(540,772) scale(1.35)">${golferTowelHero(0,0)}</g>`;
+      break;
+    case 'faceOnClock':
+      heroLocal = `<g transform="translate(460,772) scale(1.1)">${golferFaceOnAddressBase(0,0)}</g>`;
+      heroAbs = tcClockArcAbs();
+      break;
+    case 'tile-green':
+      isTile = true; heroAbs = mapGreenTopdown(); sceneWren = '';
+      break;
+    case 'tile-hole':
+      isTile = true; heroAbs = mapHoleMap(entry.id); sceneWren = '';
+      break;
+    case 'tile-station':
+      isTile = true; heroAbs = mapStationTopdown(); sceneWren = '';
+      break;
+    case 'profile':
+    default:
+      heroLocal = golferProfileAddress(0, 0);
+      break;
+  }
+
+  // Map-tile heroes are not mirrored for LH (course layouts aren't handed; #42 carries a
+  // textual LH note in its checkpoints instead — see shared decision 3/reuse instructions).
+  const figure = isTile ? heroAbs : `${heroAbs}${mirrorOpen}${heroLocal}${mirrorClose}`;
+  const dots = tcLeaders(entry.leaders, isTile ? false : lh);
+
+  let checkpoints = (entry.checkpoints || []).slice(0, 3);
+  // maxC/rowLH: single source of truth for the wrap width + line pitch tcBodyWrap will
+  // actually use (raw 52/34 + kid flag passed through, scaled once inside tcBodyWrap —
+  // NOT pre-scaled here too, which double-applies tcKChars/tcK and desyncs the y-advance
+  // below from the real rendered line count/spacing — see renderSituationCard for the
+  // same fix and fuller explanation).
+  const maxC = tcKChars(52, opts.kid);
+  const rowLH = tcK(34, opts.kid);
+  let body = '';
+  let y = BAND.bodyTop + 60;
+  checkpoints.forEach((c, i) => {
+    body += `<circle cx="${TC_SAFE+18}" cy="${y-10}" r="20" fill="${TC.ink}"/>`;
+    body += `<text x="${TC_SAFE+18}" y="${y-2}" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="800" font-size="${tcK(20,opts.kid)}" fill="${TC.onInk}">${i+1}</text>`;
+    body += tcBodyWrap(c, TC_SAFE + 56, y, { maxChars: 52, kid: opts.kid });
+    y += rowLH * tcWrap(c, maxC).length + 32;
+  });
+
+  return tcSvgOpen()
+    + tcSceneBands()
+    + tcBanner(entry, opts)
+    + figure
+    + sceneWren
+    + dots
+    + body
+    + tcCalloutBar(entry.callout, opts)
+    + tcFooter(tcFooterLabel(entry.id, opts))
+    + tcSvgClose();
+}
+
+/* ═══ 4. DIAGRAM-SEQUENCE — 3-4 frames separated by brass chevrons, numbered steps ═══ */
+function renderDiagramSequenceCard(entry, opts) {
+  opts = opts || {};
+  const lh = opts.hand === 'L';
+  const n = TC9_FRAMES.length;
+  const frameW = (TC_W - TC_SAFE * 2) / n;
+  let scene = '';
+  for (let i = 0; i < n; i++) {
+    const cx = TC_SAFE + frameW * i + frameW / 2;
+    // Feet baseline fixed to the grass line (y=690) — was floating 136px high at y=554,
+    // inside the slate sky band (Owen ui-ux review, finding: sequence figures float above
+    // the ground). Figure mirrored in place, about its own frame center, for LH golfers,
+    // so the Top->Impact reading order stays left to right regardless of hand (equivalent
+    // wrapper to renderDiagramPositionCard's mirror, per the coder handoff spec).
+    const mirror = lh ? ' scale(-1,1)' : '';
+    scene += `<g transform="translate(${cx},696)${mirror}">${golferFaceOnFrame(i, 0, 0)}</g>`;
+    if (i < n - 1) {
+      const chevX = TC_SAFE + frameW * (i + 1);
+      scene += `<g transform="translate(${chevX-16},470)">${tcGlyph('chevron-right', TC.brass, 32)}</g>`;
+    }
+  }
+  // small flagstick (deviation: #9 gained one, target-side/left); mirrored to the opposite
+  // edge for LH so it still reads as the target relative to the mirrored swing direction.
+  const flagX = lh ? (TC_W - 120) : 120;
+  scene += `
+    <line x1="${flagX}" y1="470" x2="${flagX}" y2="700" stroke="${TC.onInk}" stroke-width="3.5"/>
+    <path d="M${flagX},472 h26 l-8,10 8,10 h-26" fill="${TC.brass}"/>
+  `;
+
+  // 4 steps must fit the 320px body band (measured: 4 rows @ 1-2 lines each is the
+  // ceiling before step 4 gets pushed into the ink callout band and goes invisible
+  // — that exact silent-overflow bug is why this is now clip-guarded below).
+  let steps = entry.steps || [];
+  if (opts.kid) steps = steps.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7
+  // maxC/rowLH: single source of truth, raw values passed to tcBodyWrap (not pre-scaled —
+  // see renderSituationCard for why double-scaling maxChars/lineHeight desyncs the
+  // y-advance from what actually renders).
+  const maxC = tcKChars(50, opts.kid);
+  const rowLH = tcK(30, opts.kid);
+  let body = '';
+  let y = BAND.bodyTop + 50;
+  steps.forEach((s, i) => {
+    body += `<circle cx="${TC_SAFE+18}" cy="${y-10}" r="20" fill="${TC.ink}"/>`;
+    body += `<text x="${TC_SAFE+18}" y="${y-2}" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="800" font-size="${tcK(20,opts.kid)}" fill="${TC.onInk}">${i+1}</text>`;
+    body += tcBodyWrap(s, TC_SAFE + 56, y, { maxChars: 50, lineHeight: 30, kid: opts.kid });
+    y += rowLH * tcWrap(s, maxC).length + 18;
+  });
+  const seqClip = `<clipPath id="tcSeqClip"><rect x="0" y="${BAND.bodyTop}" width="${TC_W}" height="${BAND.bodyBottom-BAND.bodyTop}"/></clipPath>`;
+  body = seqClip + `<g clip-path="url(#tcSeqClip)">${body}</g>`;
+
+  return tcSvgOpen()
+    + tcSceneBands()
+    + tcBanner(entry, Object.assign({}, opts, { headlineMaxChars: 16 }))
+    + scene
+    + body
+    + tcCalloutBar(entry.callout, opts)
+    + tcFooter(tcFooterLabel(entry.id, opts))
+    + tcSvgClose();
+}
+
+/* ═══ 5. CHART — small hero icon, table up to 6 rows, tabular-nums, optional big-number cell ═══ */
+function renderChartCard(entry, opts) {
+  opts = opts || {};
+  // Placement fixed (Owen ui-ux review, 2026-07-30): translate(120,660) scale(3.4) rendered
+  // ~204px tall straddling the grass line (660->864) — "half-buried in turf." New placement
+  // sits wholly inside the ink field, clear of the slate band at y=520.
+  const icon = `<g transform="translate(120,310) scale(2.8)">${tcGlyph('gauge', TC.onInk, 60)}</g>`;
+  let rows = entry.rows || [];
+  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7 (kid #3 shipped 6)
+  const colClub = TC_SAFE, colBar = TC_SAFE + 210, barW = 470, colPct = TC_SAFE + 750;
+  // Body band is 320px. Up to 6 rows + a footnote must fit, so this is deliberately
+  // denser than the 30px "body" scale: row numerals sit at 26px (footnote's size),
+  // pitch 40px — verified against the 6-row worst case by render, not assumed.
+  let body = '';
+  let y = BAND.bodyTop + 44;
+  rows.forEach(r => {
+    // Plain label/value row (added for content batch 2) — for reference tables that
+    // aren't a carry/roll ratio (stance width, shaft flex, chip-club situations, the
+    // on-course cheat sheet). No bar, no percentage math, just two wrapped text columns.
+    // Existing carry/roll rows (e.g. #22) are untouched below — this branch only fires
+    // when a row supplies `value` instead of `carry`/`roll`.
+    if (r.value !== undefined) {
+      // Column split re-measured against real pixel width, not just character count —
+      // the first version of this branch used a 30-char label budget inside a 210px
+      // column (colBar), which is only ~16 characters wide at 24px/weight600 Archivo.
+      // Longer situational labels (e.g. "Fringe too thick to putt through") overflowed
+      // past colBar and collided with the value text — caught in the render QA pass.
+      // Fix: dedicated wider label column (420px) + its own value column starting after it.
+      const colValueRow = TC_SAFE + 420;
+      const rowPitch = tcK(28, opts.kid); // kid-scale the line pitch too, matching the tcK(24) text below
+      const labelLines = tcWrap(r.club, tcKChars(28, opts.kid));
+      const valueLines = tcWrap(r.value, tcKChars(40, opts.kid));
+      labelLines.forEach((l, i) => {
+        body += `<text x="${colClub}" y="${y + i*rowPitch}" font-family="Archivo,sans-serif" font-weight="600" font-size="${tcK(24,opts.kid)}" fill="${TC.ink}">${l}</text>`;
+      });
+      valueLines.forEach((l, i) => {
+        body += `<text x="${colValueRow}" y="${y + i*rowPitch}" font-family="Archivo,sans-serif" font-weight="600" font-size="${tcK(24,opts.kid)}" fill="${TC.ink70}">${l}</text>`;
+      });
+      y += rowPitch * Math.max(labelLines.length, valueLines.length) + 14;
+      return;
+    }
+    const carryW = Math.round(barW * (r.carry / 100));
+    const isBig = entry.bigNumberClub && r.club === entry.bigNumberClub;
+    body += `<text x="${colClub}" y="${y}" font-family="Archivo,sans-serif" font-weight="600" font-size="${tcK(26,opts.kid)}" fill="${TC.ink}">${r.club}</text>`;
+    body += `<rect x="${colBar}" y="${y-18}" width="${barW}" height="18" rx="9" fill="${TC.hairline}"/>`;
+    body += `<rect x="${colBar}" y="${y-18}" width="${carryW}" height="18" rx="9" fill="${TC.ink}"/>`;
+    body += `<text x="${colPct}" y="${y}" font-family="Archivo,sans-serif" font-variant-numeric="tabular-nums" font-weight="${isBig?800:600}" font-size="${tcK(isBig?30:24,opts.kid)}" fill="${TC.ink}">${r.carry}% / ${r.roll}%</text>`;
+    y += 40;
+  });
+  const footnote = entry.footnote ? tcFootnote(entry.footnote, TC_SAFE, y + 14, { maxChars: 66, kid: opts.kid }) : '';
+  // Defensive clip: body band ends hard at BAND.bodyBottom — if a future entry's
+  // footnote or row count runs long, this hides the overflow instead of letting it
+  // bleed into the callout band (as happened during QA on this exact template).
+  const bodyClip = `<clipPath id="tcChartClip"><rect x="0" y="${BAND.bodyTop}" width="${TC_W}" height="${BAND.bodyBottom-BAND.bodyTop}"/></clipPath>`;
+
+  return tcSvgOpen()
+    + tcSceneBands()
+    + tcBanner(entry, opts)
+    + icon
+    + tcSceneWren()
+    + bodyClip
+    + `<g clip-path="url(#tcChartClip)">${body}${footnote}</g>`
+    + tcCalloutBar(entry.callout, opts)
+    + tcFooter(tcFooterLabel(entry.id, opts))
+    + tcSvgClose();
+}
+
+/* ═══ 6. FIX — two cream tiles hero (oxblood "what you see" / ink "what it should look like"),
+   three stacked bands: WHAT YOU SEE / WHY / THE FIX (fixed kickers, all 8 FIX cards) ═══ */
+function renderFixCard(entry, opts) {
+  opts = opts || {};
+  const tileY = 340, tileH = 360, tileW = 420, gap = 40;
+  const lX = TC_SAFE, rX = TC_W - TC_SAFE - tileW;
+  // Generic oxblood/ink trajectory-arc pair removed (Owen ui-ux review): it was the same
+  // two arcs reused on all 8 FIX cards, backwards on #14 (fault card's own text says "low,
+  // screaming shot" but the arc flew higher) and generic-to-wrong on the rest. Real
+  // per-card FIX art is a design-pass task, out of scope here — per Owen's own interim
+  // recommendation, an honest simpler tile (label + hairline only, no trajectory claim)
+  // beats a diagram that contradicts its own card. Two labeled cream tiles carry it now.
+  const tiles = `
+    <rect x="${lX}" y="${tileY}" width="${tileW}" height="${tileH}" rx="20" fill="${TC.cream}"/>
+    <rect x="${rX}" y="${tileY}" width="${tileW}" height="${tileH}" rx="20" fill="${TC.cream}"/>
+    ${tcSectionHead('What you see', lX + 24, tileY + 40, false, opts.kid)}
+    ${tcSectionHead('What it should be', rX + 24, tileY + 40, false, opts.kid)}
+  `;
+
+  // Body band is 320px / 3 fixed kickers = ~106px per row. At that budget each row
+  // gets a kicker line + strictly 2 lines of 26px text (measured, not assumed) —
+  // copy in tip-cards-data.js is trimmed to fit within that 2-line cap per row.
+  const rowH = (BAND.bodyBottom - BAND.bodyTop) / 3;
+  let body = '';
+  let fixClipDefs = '';
+  // Per-row clip (new, this fix pass): renderFixCard was the one template with no overflow
+  // guard at all. QA on this pass found several existing FIX cards (both stock content this
+  // coder didn't touch, e.g. #14/#15/#16/#17/#19, and #12/#13 kid rows after applying this
+  // pass's own content fixes + the new kid type scale) already ran past the "2 lines per
+  // row" budget the layout assumes, silently overlapping into the next kicker with no
+  // guardrail — worse than the other templates' clips, because text overlap reads as
+  // broken, not just truncated. Trimmed the specific rows this pass touched/regressed;
+  // clipping the rest here is a stopgap so any remaining or future long copy fails safe
+  // (invisible overflow) instead of unreadable overlap, until a content-length pass or
+  // re-templating (out of scope here) fixes the underlying budget.
+  ['WHAT YOU SEE', 'WHY', 'THE FIX'].forEach((kicker, i) => {
+    const ry = BAND.bodyTop + rowH * i;
+    const clipId = `tcFixRowClip${i}`;
+    fixClipDefs += `<clipPath id="${clipId}"><rect x="0" y="${ry}" width="${TC_W}" height="${rowH}"/></clipPath>`;
+    // Kicker bumped 18px -> 22px (Owen ui-ux review): 18 isn't in the locked type scale,
+    // nearest role is 22px/+3.5 for section heads.
+    let row = `<text x="${TC_SAFE}" y="${ry+26}" font-family="Archivo,sans-serif" font-weight="700" font-size="${tcK(22,opts.kid)}" letter-spacing="2.5" fill="${TC.ink70}">${kicker}</text>`;
+    row += tcBodyWrap(entry.fix[i], TC_SAFE, ry + 52, { maxChars: 58, size: 26, lineHeight: 26, kid: opts.kid });
+    body += `<g clip-path="url(#${clipId})">${row}</g>`;
+    if (i < 2) body += `<line x1="${TC_SAFE}" y1="${ry+rowH-6}" x2="${TC_W-TC_SAFE}" y2="${ry+rowH-6}" stroke="${TC.hairline}" stroke-width="2"/>`;
+  });
+  body = fixClipDefs + body;
+
+  return tcSvgOpen()
+    + tcSceneBands()
+    + tcBanner(entry, Object.assign({}, opts, { headlineMaxChars: 16 }))
+    + tiles
+    + body
+    + tcCalloutBar(entry.callout, opts)
+    + tcFooter(tcFooterLabel(entry.id, opts))
+    + tcSvgClose();
+}
+
+function renderTipCard(entry, opts) {
+  opts = opts || {};
+  const active = (opts.kid && entry.kid) ? Object.assign({}, entry, entry.kid) : entry;
+  // Deliberate schema extension (Owen ui-ux "Pose + re-templating follow-up", 2026-07-30,
+  // new deviation 4): a kid variant can override its own template, not just its copy — #36
+  // "Junior clubs" is COMPARE for adults but "Your bag, all 7 clubs" is a CHART for kids.
+  // active.format falls back to entry.format so every other card (kid or not) is unaffected.
+  const fmt = active.format || entry.format;
+  switch (fmt) {
+    case 'SITUATION': return renderSituationCard(active, opts);
+    case 'COMPARE': return renderCompareCard(active, opts);
+    case 'DIAGRAM-POSITION': return renderDiagramPositionCard(active, opts);
+    case 'DIAGRAM-SEQUENCE': return renderDiagramSequenceCard(active, opts);
+    case 'CHART': return renderChartCard(active, opts);
+    case 'FIX': return renderFixCard(active, opts);
+    default: throw new Error('Unknown tip card format: ' + fmt);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TIP CARDS — content data
+   One entry per card. Schema documented below. Every fact traces to a specific
+   pga-coaching-reference/ file+section, noted in each entry's `source` field.
+   PHASE 1 (this pass): the 6 worked-example topics only (#20, #25, #6, #9, #22, #12),
+   fully populated including kid variants where the kid-applicability audit
+   (TIP-CARDS-CONTENT-PLAN.md, 2026-07-30) calls for one. The remaining 37 adult
+   topics + ~14 more kid variants are NOT included yet — see the coder handoff
+   for the explicit list of what's done vs. pending.
+
+   SCHEMA (fields used across all formats; format-specific fields noted per template):
+   {
+     id: number,                 // topic # from TIP-CARDS-CONTENT-PLAN.md
+     format: 'SITUATION'|'COMPARE'|'DIAGRAM-POSITION'|'DIAGRAM-SEQUENCE'|'CHART'|'FIX',
+     eyebrow: string,             // category, tiny caps
+     headline: string,            // sentence case, <=1-2 lines at 64px
+     callout: string,             // sentence case, ink callout bar
+     footerRight: string,         // optional right-aligned footer label (e.g. "20 / 43")
+     source: string,              // pga-coaching-reference/ file + section, for the audit trail
+     kid: null | {                // present only if a kid variant exists; same shape
+       headline, callout, ...format-specific fields, ageGate: '5-7'|'8-12'|'all'
+     },
+     // format-specific:
+     useWhen: [string], notWhen: string,                          // SITUATION
+     compareVariant: 'checkx'|'neutral', tileLeftTitle, tileRightTitle,
+       tileLeftBody, tileRightBody, rows: [{label,left,right}],    // COMPARE
+     leaders: [{x,y,lx,ly}], checkpoints: [string],                // DIAGRAM-POSITION
+     steps: [string],                                              // DIAGRAM-SEQUENCE
+     rows: [{club,carry,roll}], bigNumberClub, footnote,           // CHART
+     fix: [whatYouSee, why, theFix]                                // FIX
+   }
+   ════════════════════════════════════════════════════════════════════ */
+
+// TC_STD_LEADERS removed 2026-07-30 (Owen ui-ux "Pose + re-templating follow-up",
+// shared decision 2: "TC_STD_LEADERS dies... it was the root defect"). Every
+// DIAGRAM-POSITION entry below now carries its own `leaders` array matched to its own
+// pose/hero geometry.
+
+const TIP_CARDS = [
+  // ── #20 · SITUATION · source: 05-short-game.md "Hybrid Chip, Not the Same as..." + club-selection table ──
+  {
+    id: 20,
+    format: 'SITUATION',
+    eyebrow: 'Short game',
+    headline: 'Putt with your hybrid',
+    useWhen: [
+      'Inside ~20 yards, fringe grass too thick to putt through cleanly',
+      'Wide sole glides through instead of digging in',
+      'Builds confidence — no descending strike to time'
+    ],
+    notWhen: 'Ball sitting down in the rough — that needs loft instead',
+    callout: 'Set up like a putt — no wrist hinge, just a smooth pendulum through the ball.',
+    footerRight: '20 / 43',
+    source: '05-short-game.md: "Hybrid Chip, Not the Same as a 7-Iron or 9-Iron Bump-and-Run"',
+    kid: null // no kid version possible — no hybrid in the 7-club reference bag; see #28/"Roll It With Your 7-Iron" note in handoff
+  },
+
+  // ── #25 · COMPARE (neutral variant, deviation #1) · source: 05-short-game.md "Bunker Play" ──
+  {
+    id: 25,
+    format: 'COMPARE',
+    eyebrow: 'Short game',
+    headline: 'Same sand, different shot',
+    compareVariant: 'neutral',
+    tileLeftTitle: 'Greenside',
+    tileRightTitle: 'Fairway',
+    tileLeftBody: 'Splash the sand 2 in. behind the ball. The sand launches it.',
+    tileRightBody: 'Pick the ball clean. Ball-first contact, same as a normal shot.',
+    rows: [
+      // Right value trimmed from the reviewer's literal text ("One more club — feet in
+      // sand costs 10-15%", 41 chars) — COMPARE's neutral variant renders this column as a
+      // single unwrapped <text>, and the full string ran off the right edge of the card in
+      // render QA. Shortened to fit the ~31-char column budget, same fact preserved.
+      { label: 'Club', left: 'Sand wedge, face open', right: 'One more club — costs 10–15%' },
+      { label: 'Contact', left: 'Sand first, ~2" behind ball', right: 'Ball first, clean strike' },
+      { label: 'Stance', left: 'Open 20–30° to target', right: 'Square, centered' },
+      { label: 'Weight', left: '60–70% on lead side', right: 'Centered' },
+      { label: 'Swing', left: 'Full speed, follow through', right: '75% backswing, no sway' }
+    ],
+    callout: 'Don’t mix the two: splash it greenside, pick it clean in the fairway.',
+    footerRight: '25 / 43',
+    source: '05-short-game.md: "3. Bunker Play" (Greenside Bunker + Fairway Bunker subsections)',
+    // Kid variant nulled (2026-07-30 coder fix pass): duplicated #24 kid's headline
+    // word-for-word while silently changing topic (greenside vs. fairway bunker) — #24's
+    // kid card already covers "it's the shot the sand wedge is named for" for bunkers.
+    kid: null
+  },
+
+  // ── #6 · DIAGRAM-POSITION · source: 01-universal-setup.md "4. Posture" ──
+  {
+    id: 6,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Setup & fundamentals',
+    headline: 'The athletic ready position',
+    // Corrected 2026-07-30 (Owen ui-ux pose follow-up) to match the corrected #6 baseline
+    // figure's real joint coordinates (was measured off the pre-correction straight-arm pose).
+    leaders: [
+      { x: 596, y: 536, lx: 820, ly: 470 },
+      { x: 548, y: 652, lx: 250, ly: 660 },
+      { x: 508, y: 583, lx: 250, ly: 520 }
+    ],
+    checkpoints: [
+      'Hinge at the hips, not the waist — spine stays straight, chin stays up',
+      'Slight flex in both knees, an athletic stance, not a squat',
+      'Arms hang naturally under the shoulders, hands fall just in front of the thighs'
+    ],
+    callout: 'An athlete ready to receive a serve. Same posture, every time.',
+    footerRight: '6 / 43',
+    source: '01-universal-setup.md: "4. Posture" + "Visual cue for all levels"',
+    kid: {
+      ageGate: 'all',
+      headline: 'Ready position',
+      checkpoints: [
+        'Bend a little from the hips, not the back',
+        'Soft knees, like you’re ready to catch a ball',
+        'Let your arms just hang down, relaxed'
+      ],
+      callout: 'Stand like an athlete waiting for the ball to come to you.',
+      footerRight: '6 / 43 · kid'
+    }
+  },
+
+  // ── #9 · DIAGRAM-SEQUENCE · source: 02-swing-sequence.md "Checkpoint 4, Transition" ──
+  {
+    id: 9,
+    format: 'DIAGRAM-SEQUENCE',
+    eyebrow: 'Swing sequence',
+    headline: 'Transition',
+    steps: [
+      'Top of backswing: fully wound, hands high, lag set',
+      'Hips fire: belt line turns before the arms move',
+      'Arms drop: hands fall to the trail hip, lag held',
+      'Club arrives last: hands ahead, forward shaft lean'
+    ],
+    callout: 'Hips, chest, arms, club. Separation is speed, not arm strength.',
+    footerRight: '9 / 43',
+    source: '02-swing-sequence.md: "Checkpoint 4, Transition (The Most Important Move in Golf)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Fire your hips first',
+      steps: [
+        'Wind up, back facing the target',
+        'Turn your belt buckle toward the target first',
+        'Let your arms come down after your hips lead',
+        'The club hits the ball last of all'
+      ],
+      callout: 'Hips lead, then everything else follows — the club goes last.',
+      footerRight: '9 / 43 · kid'
+    }
+  },
+
+  // ── #22 · CHART · source: 05-short-game.md "Flight-to-Roll Ratios" ──
+  {
+    id: 22,
+    format: 'CHART',
+    eyebrow: 'Short game',
+    headline: 'Flight-to-roll ratio by club',
+    rows: [
+      { club: '7-iron', carry: 20, roll: 80 },
+      { club: '9-iron', carry: 30, roll: 70 },
+      { club: 'PW', carry: 50, roll: 50 },
+      { club: 'GW (50°)', carry: 65, roll: 35 },
+      { club: 'SW (56°)', carry: 75, roll: 25 },
+      { club: 'LW (60°)', carry: 85, roll: 15 }
+    ],
+    bigNumberClub: 'PW',
+    footnote: 'SW and LW vary most by green firmness — calibrate your own.',
+    callout: 'Decide how much needs to fly, then match the club to the ratio.',
+    footerRight: '22 / 43',
+    source: '05-short-game.md: "Flight-to-Roll Ratios" table',
+    kid: {
+      ageGate: 'all',
+      headline: 'How far it flies vs. rolls',
+      rows: [
+        { club: '7-iron', carry: 20, roll: 80 },
+        { club: '9-iron', carry: 30, roll: 70 },
+        { club: 'Sand wedge', carry: 75, roll: 25 }
+      ],
+      bigNumberClub: 'Sand wedge',
+      footnote: 'These three are the clubs in your bag — try all three from the same spot and watch the difference.',
+      callout: 'Same swing, three different clubs, three different shots.',
+      footerRight: '22 / 43 · kid'
+    }
+  },
+
+  // ── #12 · FIX · source: 04-faults-and-fixes.md "Fault 1, Over-the-Top" ──
+  {
+    id: 12,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'Over the top',
+    fix: [
+      'Starts lead-side and stays (a pull), or curves hard to trail side (a slice). Divot points lead-side of the target line.',
+      'Arms throw the club from the top before the hips start down — club comes from outside the target line.',
+      'Pump Drill: hips lead, arms follow. Feel like you’re swinging out to your trail-side field.'
+    ],
+    callout: 'Feel like you’re swinging out to the field on your trail side.',
+    footerRight: '12 / 43',
+    source: '04-faults-and-fixes.md: "Fault 1, Over-the-Top (Slice / Pull)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Coming from outside',
+      fix: [
+        'The ball starts lead-side, then stays or curves to your trail side. Divot points lead-side.',
+        'Your arms start the swing down before your hips turn — the club comes from the wrong side.',
+        'Turn your belt buckle toward the target first, arms follow. Hips before arms, every time.'
+      ],
+      callout: 'Hips first, arms follow. Every time.',
+      footerRight: '12 / 43 · kid'
+    }
+  },
+
+  /* ── #1 · DIAGRAM-POSITION · source: 01-universal-setup.md "1. Grip" ── */
+  {
+    id: 1,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Setup & fundamentals',
+    headline: 'Grip pressure: 5 out of 10',
+    // Reuses the corrected #6 profile pose deliberately (Owen ui-ux pose follow-up,
+    // 2026-07-30): grip pressure is genuinely checked at address, so the fix is a
+    // two-hand grip detail (heroKind 'profileGrip'), not a new skeleton.
+    heroKind: 'profileGrip',
+    leaders: [
+      { x: 507, y: 577, lx: 250, ly: 500 },
+      { x: 438, y: 738, lx: 255, ly: 700 },
+      { x: 512, y: 594, lx: 255, ly: 600 }
+    ],
+    checkpoints: [
+      '5 out of 10 — firm for control, light for feel',
+      'A 10/10 grip kills your speed before you swing',
+      'Club sits in your fingers, not your palm'
+    ],
+    callout: 'Soften to 5 out of 10. You’ll feel the club head again.',
+    footerRight: '1 / 43',
+    source: '01-universal-setup.md: "1. Grip" — Grip pressure + Common Grip Errors',
+    kid: {
+      ageGate: 'all',
+      headline: 'Hold it like a bird',
+      checkpoints: [
+        'Not too tight, not too loose — like a bird',
+        'A tight grip slows your swing down',
+        'Feel the club in your fingers, not your palm'
+      ],
+      callout: 'Soft enough to feel it, tight enough to control it.',
+      footerRight: '1 / 43 · kid'
+    }
+  },
+
+  /* ── #2 · COMPARE (neutral variant) · source: 01-universal-setup.md "Grip Strength" ── */
+  {
+    id: 2,
+    format: 'COMPARE',
+    eyebrow: 'Setup & fundamentals',
+    headline: 'Strong vs. weak grip',
+    compareVariant: 'neutral',
+    tileLeftTitle: 'Strong grip',
+    tileRightTitle: 'Weak grip',
+    tileLeftBody: 'V points past your trail shoulder. Produces a draw or hook.',
+    tileRightBody: 'V points toward your chin. Produces a fade or slice.',
+    rows: [
+      { label: 'V direction', left: 'Past trail shoulder', right: 'Toward your chin' },
+      { label: 'Ball flight', left: 'Draw / hook', right: 'Fade / slice' },
+      { label: 'Best for', left: 'Chronic slicers', right: 'Rarely recommended' }
+    ],
+    callout: 'Neutral — V pointing at your trail shoulder — is right for most players.',
+    footerRight: '2 / 43',
+    source: '01-universal-setup.md: "Grip Strength" table',
+    kid: null // too abstract for a kid card — pga-coaching audit, adult-only
+  },
+
+  /* ── #3 · CHART (value rows) · source: 01-universal-setup.md "3. Ball Position" ── */
+  {
+    id: 3,
+    format: 'CHART',
+    eyebrow: 'Setup & fundamentals',
+    headline: 'Ball position by club',
+    rows: [
+      { club: 'Wedges, 9i, 8i', value: 'Center of stance' },
+      { club: '7-iron', value: '1 ball-width toward lead foot' },
+      { club: '6-iron, 5-iron', value: '1–2 ball-widths toward lead foot' },
+      { club: 'Hybrids, 4-iron', value: '2 ball-widths toward lead foot' },
+      { club: 'Fairway woods', value: '1–2 in. inside lead heel' },
+      { club: 'Driver', value: 'Off the lead heel' }
+    ],
+    callout: 'One rule covers every club: longer club, ball moves toward your lead foot.',
+    footerRight: '3 / 43',
+    source: '01-universal-setup.md: "3. Ball Position" table + "The universal rule"',
+    kid: {
+      ageGate: 'all',
+      headline: 'Ball position, your bag',
+      rows: [
+        { club: 'Driver', value: 'Off the lead heel' },
+        { club: '3-wood', value: '1–2 in. inside lead heel' },
+        { club: '5-iron', value: '1–2 ball-widths toward lead foot' },
+        { club: '7-iron', value: '1 ball-width toward lead foot' },
+        { club: '9-iron, sand wedge', value: 'Center of stance' },
+        { club: 'Putter', value: 'Just forward of center' }
+      ],
+      callout: 'Longer club, ball moves toward your lead foot. Same rule, every time.',
+      footerRight: '3 / 43 · kid'
+    }
+  },
+
+  /* ── #4 · DIAGRAM-POSITION · source: 01-universal-setup.md "5. Alignment" ── */
+  {
+    id: 4,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Setup & fundamentals',
+    headline: 'The train tracks model',
+    heroKind: 'faceOnTrainTracks',
+    leaders: [
+      { x: 528, y: 782, lx: 360, ly: 660 },
+      { x: 420, y: 760, lx: 340, ly: 560 },
+      { x: 255, y: 776, lx: 215, ly: 645 }
+    ],
+    checkpoints: [
+      'Clubface aims straight at the target',
+      'Feet, hips, shoulders line up parallel to it',
+      'The two rails never meet, just like tracks'
+    ],
+    callout: 'Aim your body parallel to the target line, not at the target.',
+    footerRight: '4 / 43',
+    source: '01-universal-setup.md: "5. Alignment" — Train tracks model',
+    kid: {
+      ageGate: 'all',
+      headline: 'Train tracks, not a target',
+      checkpoints: [
+        'Point the clubface right at the target',
+        'Line your feet up next to that line',
+        'Two tracks side by side — they never cross'
+      ],
+      callout: 'Aim the club at the target. Line your feet next to it, not at it.',
+      footerRight: '4 / 43 · kid'
+    }
+  },
+
+  /* ── #5 · CHART (value rows) · source: 01-universal-setup.md "2. Stance Width" ── */
+  {
+    id: 5,
+    format: 'CHART',
+    eyebrow: 'Setup & fundamentals',
+    headline: 'Stance width by club',
+    rows: [
+      { club: 'Putter', value: 'Shoulder-width' },
+      { club: 'Chip', value: 'Narrow, 6–8 in.' },
+      { club: 'Wedges, full shot', value: 'Hip-width' },
+      { club: 'Short irons (9, 8)', value: 'Hip- to shoulder-width' },
+      // Mid irons (7-5) + Long irons/hybrids/woods merged into one row (both were
+      // "Shoulder-width" already) to make room for the 9/8-iron row above while staying
+      // at the template's 6-row cap — coder fix pass, 2026-07-30.
+      { club: 'Mid-to-long irons, hybrids, woods', value: 'Shoulder-width' },
+      { club: 'Driver', value: 'Shoulder-width or wider' }
+    ],
+    callout: 'When in doubt, shoulder-width for everything. Learn it, then adjust.',
+    footerRight: '5 / 43',
+    source: '01-universal-setup.md: "2. Stance Width" table',
+    kid: {
+      ageGate: 'all',
+      headline: 'One width for everything',
+      rows: [
+        { club: 'Every club', value: 'About hip-width, a little wider for the driver' }
+      ],
+      callout: 'Kids don’t need a different stance for every club — just hip-width.',
+      footerRight: '5 / 43 · kid'
+    }
+  },
+
+  /* ── #7 · DIAGRAM-SEQUENCE · source: 02-swing-sequence.md "The Sequence at a Glance" ── */
+  {
+    id: 7,
+    format: 'DIAGRAM-SEQUENCE',
+    eyebrow: 'Swing sequence',
+    headline: 'The swing, start to finish',
+    steps: [
+      'Setup: grip 5/10, ball position, aim parallel',
+      'Takeaway: one-piece, lead shoulder under chin',
+      'Transition: hips lead, lag holds, club last',
+      'Impact and finish: hands ahead, hold 3 sec'
+    ],
+    callout: 'One motion, four frames. Diagnose in order, from setup forward.',
+    footerRight: '7 / 43',
+    source: '02-swing-sequence.md: "The Sequence at a Glance"',
+    kid: null // violates the one-concept rule for kids — pga-coaching audit, adult-only
+  },
+
+  /* ── #8 · DIAGRAM-POSITION · source: 02-swing-sequence.md "Checkpoint 2, Takeaway" ── */
+  {
+    id: 8,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Swing sequence',
+    headline: 'The first 12 inches',
+    heroKind: 'faceOnTakeaway',
+    // Row 1 terminal nudged from spec's literal (830,720) to (770,660) — render QA found
+    // the brass terminal circle landing directly on top of the scene wren at (880,742).
+    // Render-QA nudge rule (±20px) doesn't quite cover this collision, so it moved further;
+    // still fans right and roughly parallel to rows 2/3, per the spec's own description.
+    leaders: [
+      { x: 640, y: 750, lx: 770, ly: 660 },
+      { x: 559, y: 553, lx: 815, ly: 480 },
+      { x: 605, y: 664, lx: 800, ly: 600 }
+    ],
+    checkpoints: [
+      'Club head stays low, moves along the ground',
+      'Hands, arms, shoulders move together as one',
+      'Club head stays outside your hands'
+    ],
+    callout: 'The first foot the club travels sets the path for the rest of the swing.',
+    footerRight: '8 / 43',
+    source: '02-swing-sequence.md: "Checkpoint 2, Takeaway (First 12 Inches)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'The first foot',
+      checkpoints: [
+        'Push the club away low, like opening a door',
+        'Hands, arms, shoulders move together',
+        'Keep the club low for the first foot'
+      ],
+      callout: 'Keep the club head low for the first foot. Don’t pick it up.',
+      footerRight: '8 / 43 · kid'
+    }
+  },
+
+  /* ── #10 · DIAGRAM-POSITION · source: 02-swing-sequence.md "Checkpoint 5, Impact" ── */
+  {
+    id: 10,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Swing sequence',
+    headline: 'What impact should look like',
+    heroKind: 'faceOnImpact',
+    leaders: [
+      { x: 478, y: 553, lx: 250, ly: 495 },
+      { x: 505, y: 656, lx: 250, ly: 662 },
+      { x: 467, y: 776, lx: 255, ly: 745 }
+    ],
+    checkpoints: [
+      'Hands slightly ahead, shaft leans to target',
+      'Hips open, weight driving to your lead side',
+      'Divot appears in front of the ball'
+    ],
+    callout: 'The divot tells the truth. It should start after the ball, not before.',
+    footerRight: '10 / 43',
+    source: '02-swing-sequence.md: "Checkpoint 5, Impact"',
+    kid: {
+      ageGate: '8-12',
+      checkpoints: [
+        'Hands get to the ball before the club does',
+        'Hit through the ball, not at it',
+        'Your divot should start after the ball'
+      ],
+      callout: 'Make a divot after the ball. The dirt tells you if you got it right.',
+      footerRight: '10 / 43 · kid'
+    }
+  },
+
+  /* ── #11 · DIAGRAM-POSITION · source: 02-swing-sequence.md "Checkpoint 6, Finish" ── */
+  {
+    id: 11,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Swing sequence',
+    headline: 'The finish test',
+    heroKind: 'faceOnFinish',
+    leaders: [
+      { x: 489, y: 529, lx: 250, ly: 470 },
+      { x: 504, y: 761, lx: 255, ly: 730 },
+      { x: 494, y: 337, lx: 810, ly: 280 }
+    ],
+    checkpoints: [
+      'Full rotation, belly button faces the target',
+      '90%+ of your weight on your lead foot',
+      'Hold the pose 3 full seconds'
+    ],
+    callout: 'A proper finish is proof of a proper swing. Hold it for 3 seconds.',
+    footerRight: '11 / 43',
+    source: '02-swing-sequence.md: "Checkpoint 6, Finish"',
+    kid: {
+      ageGate: 'all',
+      headline: 'Superhero finish',
+      checkpoints: [
+        'Balanced, watching the ball, hands up high',
+        'Almost all your weight on your front foot',
+        'Hold it! Count 1, 2, 3 out loud'
+      ],
+      callout: 'Superhero pose — hold it until the ball lands.',
+      footerRight: '11 / 43 · kid'
+    }
+  },
+
+  /* ── #13 · FIX · source: 04-faults-and-fixes.md "Fault 2, Fat Shot" ── */
+  {
+    id: 13,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'The fat shot',
+    fix: [
+      'Ball comes up short and low. A deep divot happens behind where the ball was, before you even reach it.',
+      'Ball too far forward, or weight stuck on your trail side while your body stays down — the club bottoms out early.',
+      'Check ball position first, move it a ball-width toward your trail foot. Then Step and Swing to feel your weight move forward.'
+    ],
+    callout: 'Ball first, then the ground. In that order, every time.',
+    footerRight: '13 / 43',
+    source: '04-faults-and-fixes.md: "Fault 2, Fat Shot (Chunk)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Hitting it fat',
+      fix: [
+        'The club hits the ground before it hits the ball — short, low shot, big divot before the ball.',
+        'The ball is too far forward, or your weight got stuck on your back foot.',
+        'Move the ball back a ball-width. Feel your weight move to your front foot as you swing down.'
+      ],
+      callout: 'Ball first, then the ground. Check your weight.',
+      footerRight: '13 / 43 · kid'
+    }
+  },
+
+  /* ── #14 · FIX · source: 04-faults-and-fixes.md "Fault 3, Thin Shot" ── */
+  {
+    id: 14,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'The thin shot',
+    fix: [
+      'Club catches the top of the ball. Low, screaming shot that runs way past a normal one.',
+      'The low point of your swing moves up before the club gets there — usually your chest lifts and you stand up out of posture.',
+      'Keep the flex in both knees through impact. Pick a spot behind the ball and keep your eyes on it past contact.'
+    ],
+    callout: 'Stay down through impact — don’t rise until after the ball is gone.',
+    footerRight: '14 / 43',
+    source: '04-faults-and-fixes.md: "Fault 3, Thin Shot (Blade / Top)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Hitting it thin',
+      fix: [
+        'The club catches the top of the ball — low, fast shot that runs way too far.',
+        'You’re standing up out of your posture before the club gets to the ball.',
+        'Keep your knees soft all the way through the swing. Don’t stand up early.'
+      ],
+      callout: 'Stay down until after the ball is gone.',
+      footerRight: '14 / 43 · kid'
+    }
+  },
+
+  /* ── #15 · FIX · source: 04-faults-and-fixes.md "Fault 4, Scoop" ── */
+  {
+    id: 15,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'The scoop',
+    fix: [
+      'Wrists break down before impact. Ball flies higher and shorter than it should, contact feels inconsistent.',
+      'You’re trying to help the ball into the air with your hands — the trail hand takes over and the wrists flip.',
+      'Tee in the Ground: hit the ball, then try to clip a tee set a few inches ahead of it. Clipping it proves your hands stayed ahead.'
+    ],
+    callout: 'The club’s loft does the lifting, not your hands. Hit down and through.',
+    footerRight: '15 / 43',
+    source: '04-faults-and-fixes.md: "Fault 4, Scoop (Flipping at Impact)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Scooping it',
+      fix: [
+        'You try to lift the ball with your hands, and it flies higher and shorter than it should.',
+        'You’re trying to help the ball into the air — but that’s not your job.',
+        'The club’s loft does the lifting. Your job is to hit down and through the ball.'
+      ],
+      callout: 'The loft lifts it. Your job is just to hit down and through.',
+      footerRight: '15 / 43 · kid'
+    }
+  },
+
+  /* ── #16 · FIX · source: 04-faults-and-fixes.md "Fault 5, Reverse Pivot" ── */
+  {
+    id: 16,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'Reverse pivot',
+    fix: [
+      'Weight moves to your lead side on the backswing, then stays on your trail side through impact — backwards.',
+      '"Stay behind the ball" gets taken too literally — that means your head stays behind it, not that your weight never moves.',
+      'Step and Swing: step your trail foot back as you swing to the top, then step your lead foot forward as you swing down.'
+    ],
+    callout: 'Weight goes back to go forward. Load into your trail hip, then fire through.',
+    footerRight: '16 / 43',
+    source: '04-faults-and-fixes.md: "Fault 5, Reverse Pivot"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Weight going backward',
+      fix: [
+        'Your weight moves the wrong way — forward on the backswing, stuck on your back foot through impact.',
+        '"Stay behind the ball" doesn’t mean never move your weight — it means keep your head back.',
+        'Feel your weight load onto your back foot going back, then move to your front foot coming through.'
+      ],
+      callout: 'Weight goes back to go forward.',
+      footerRight: '16 / 43 · kid'
+    }
+  },
+
+  /* ── #17 · FIX · source: 04-faults-and-fixes.md "Fault 6, Chicken Wing" ── */
+  {
+    id: 17,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'Chicken wing',
+    fix: [
+      'Lead elbow bends and points away from your body through impact and into the follow-through. Contact is often thin.',
+      'Your body stopped rotating, so your arms take over to compensate — or your arms disconnected from your chest earlier.',
+      'Towel Under Arms: press a folded towel under both upper arms against your chest and hit shots without dropping it.'
+    ],
+    callout: 'Release through. Let your forearms rotate, don’t fold the elbow.',
+    footerRight: '17 / 43',
+    source: '04-faults-and-fixes.md: "Fault 6, Chicken Wing (Lead Arm Breakdown)"',
+    kid: null // adult-only — pga-coaching audit
+  },
+
+  /* ── #18 · FIX · source: 04-faults-and-fixes.md "Fault 7, Casting" ── */
+  {
+    id: 18,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'Casting',
+    fix: [
+      'Your wrist angle releases from the top of the downswing instead of holding until near impact — distance is lost.',
+      'Anxious hands — your arms fire before your hips move, usually from fear of missing the shot.',
+      'Pump Drill: pause at the top, start down with your hips, and consciously hold the wrist angle until hip height.'
+    ],
+    callout: 'Hold the angle. Hips go first, the club arrives last.',
+    footerRight: '18 / 43',
+    source: '04-faults-and-fixes.md: "Fault 7, Casting / Early Release (Loss of Lag)"',
+    kid: null // adult-only — pga-coaching audit
+  },
+
+  /* ── #19 · FIX · source: 04-faults-and-fixes.md "Fault 8, Early Extension" ── */
+  {
+    id: 19,
+    format: 'FIX',
+    eyebrow: 'Faults & fixes',
+    headline: 'Early extension',
+    fix: [
+      'Hips thrust toward the ball instead of rotating past it. You rise through impact — often blocks or thin contact.',
+      'Tight hip flexors, or your hips run out of room and thrust forward instead of rotating around your spine.',
+      'Hip Rotation Against a Wall: feel your trail hip rotate along the wall, not push into it. Add a hip-flexor stretch pre-round.'
+    ],
+    callout: 'Rotate your belt buckle, don’t push it at the ball. Turn, don’t thrust.',
+    footerRight: '19 / 43',
+    source: '04-faults-and-fixes.md: "Fault 8, Early Extension (Standing Up Through Impact)"',
+    kid: null // a flexibility fault, not a child's pattern — pga-coaching audit
+  },
+
+  /* ── #21 · CHART (value rows) · source: 05-short-game.md "Club Selection by Situation" ── */
+  {
+    id: 21,
+    format: 'CHART',
+    eyebrow: 'Short game',
+    headline: 'Chip club selection',
+    rows: [
+      { club: 'Flat, 20+ ft to cover', value: '7-iron or 9-iron' },
+      { club: 'Standard chip, 5–15 ft', value: 'PW or GW' },
+      { club: 'Ball sitting down in rough', value: 'SW or GW' },
+      { club: 'Must carry a bunker edge', value: 'SW or LW' },
+      { club: 'Fringe too thick to putt through', value: 'Hybrid, putting stroke' }
+    ],
+    footnote: 'The lie outranks the yardage — check it first.',
+    callout: 'Look at the lie first, then the obstacle, then the yardage.',
+    footerRight: '21 / 43',
+    source: '05-short-game.md: "Club Selection by Situation" table + precedence rule',
+    kid: {
+      ageGate: 'all',
+      headline: 'Which club for this chip?',
+      rows: [
+        { club: 'On the fringe, flat, lots of green', value: '7-iron' },
+        { club: 'Just off the green, some to cover', value: '9-iron' },
+        { club: 'Ball sitting down, or must fly it', value: 'Sand wedge' },
+        { club: 'In the bunker', value: 'Sand wedge' }
+      ],
+      footnote: undefined,
+      callout: 'Look at the ball first, then look at the flag.',
+      footerRight: '21 / 43 · kid'
+    }
+  },
+
+  /* ── #23 · DIAGRAM-POSITION · source: 03-drills-library.md "Clock Drill" ── */
+  {
+    id: 23,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Short game',
+    headline: 'The clock drill',
+    heroKind: 'faceOnClock',
+    leaders: [
+      { x: 640, y: 676, lx: 668, ly: 706 },
+      { x: 700, y: 532, lx: 730, ly: 520 },
+      { x: 600, y: 368, lx: 612, ly: 336 }
+    ],
+    checkpoints: [
+      '7 o’clock: hip height back — 30–40 yards',
+      '9 o’clock: shoulder height — 60–75 yards',
+      '11 o’clock: full backswing — 80–100 yards'
+    ],
+    callout: 'Same tempo at all three. These are starting numbers — go calibrate your own.',
+    footerRight: '23 / 43',
+    source: '03-drills-library.md: "Clock Drill (Wedge Distance Control)"',
+    kid: {
+      ageGate: 'all',
+      headline: 'Sand wedge: little, half, full',
+      checkpoints: [
+        'Little swing: hip height — your short shot',
+        'Half swing: shoulder height — medium shot',
+        'Full swing: all the way back — your longest'
+      ],
+      callout: 'Same speed every time. The length of your swing changes the distance.',
+      footerRight: '23 / 43 · kid'
+    }
+  },
+
+  /* ── #24 · DIAGRAM-POSITION · source: 05-short-game.md "Greenside Bunker, Setup" ── */
+  {
+    id: 24,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Short game',
+    headline: 'Greenside bunker setup',
+    heroKind: 'faceOnBunker',
+    leaders: [
+      { x: 476, y: 752, lx: 250, ly: 690 },
+      { x: 481, y: 540, lx: 250, ly: 480 },
+      { x: 497, y: 772, lx: 810, ly: 790 }
+    ],
+    checkpoints: [
+      'Open the face first, then take your grip',
+      'Open stance, ball forward, weight on lead side',
+      'Full speed — hit the sand 2 in. behind the ball'
+    ],
+    callout: 'You’re not hitting the ball. You’re hitting the sand behind it.',
+    footerRight: '24 / 43',
+    source: '05-short-game.md: "3. Bunker Play — Greenside Bunker, Setup"',
+    kid: {
+      ageGate: 'all',
+      headline: 'It’s called a sand wedge',
+      checkpoints: [
+        'This is the shot it’s named for',
+        'Open the face a little before you grip it',
+        'Swing all the way through, splash the sand'
+      ],
+      callout: 'Hit the sand, not the ball. The sand pushes it out.',
+      footerRight: '24 / 43 · kid'
+    }
+  },
+
+  /* ── #26 · CHART (value rows) · source: 05-short-game.md "Distance Control" ── */
+  {
+    id: 26,
+    format: 'CHART',
+    eyebrow: 'Short game',
+    headline: 'Where 3-putts come from',
+    rows: [
+      { club: 'Outside 30 ft', value: 'Lag putt — inside 3 ft is success' },
+      { club: '15–30 ft', value: 'Match the stroke to the distance' },
+      { club: '8–15 ft', value: 'Commit to a spot, roll the face' },
+      { club: 'Inside 8 ft', value: 'Pick a spot on the back of the cup' },
+      { club: 'Inside 3 ft', value: 'One spot, no hesitation' }
+    ],
+    footnote: 'Distance control matters more than the read for 3-putts.',
+    callout: 'Distance control, not direction, is what separates 2-putts from 3-putts.',
+    footerRight: '26 / 43',
+    source: '05-short-game.md: "4. Putting System — Distance Control" table',
+    kid: {
+      ageGate: 'all',
+      headline: 'Long putts need less "make it"',
+      rows: [
+        { club: 'Far away', value: 'Just get it close — inside 3 ft is a win' },
+        { club: 'Medium putt', value: 'Roll it at the hole, smooth stroke' },
+        { club: 'Short putt', value: 'Pick one spot and make it' }
+      ],
+      footnote: undefined,
+      callout: 'On long putts, getting close is the goal — not making it.',
+      footerRight: '26 / 43 · kid'
+    }
+  },
+
+  /* ── #27 · DIAGRAM-POSITION · source: 05-short-game.md "Reading Greens" ── */
+  {
+    id: 27,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Short game',
+    headline: 'Read from below the hole',
+    heroKind: 'tile-green',
+    leaders: [
+      { x: 500, y: 660, lx: 380, ly: 730 },
+      { x: 700, y: 408, lx: 820, ly: 350 },
+      { x: 560, y: 570, lx: 400, ly: 610 }
+    ],
+    checkpoints: [
+      'Read from the low side — you see it better',
+      'Downhill putts: faster, breaks more',
+      'Uphill putts: slower, breaks less'
+    ],
+    callout: 'Downhill breaks more and needs less pace. Uphill breaks less and needs more.',
+    footerRight: '27 / 43',
+    source: '05-short-game.md: "4. Putting System — Reading Greens" table',
+    kid: {
+      ageGate: 'all',
+      checkpoints: [
+        'Stand below the hole to see the slope',
+        'Downhill? Rolls faster, curves more',
+        'Uphill? Rolls slower, curves less'
+      ],
+      callout: 'Stand below the hole — that’s where you can actually see the break.',
+      footerRight: '27 / 43 · kid'
+    }
+  },
+
+  /* ── #28 · SITUATION · source: 05-short-game.md "Hybrid Chip, Not the Same as..." ──
+     Kid variant is the merged replacement recommended in the 2026-07-30 kid audit: #20's
+     kid card ("Chip It Low With Your 9-Iron") folded into #28 so the kid track doesn't
+     contradict #24 by telling a kid to "ditch" one of their seven clubs. */
+  {
+    id: 28,
+    format: 'SITUATION',
+    eyebrow: 'Short game',
+    headline: 'The bump-and-run',
+    useWhen: [
+      'Clean lie, any distance — no lie issue to solve',
+      'You want to control the carry before the roll'
+    ],
+    // Third useWhen row ("Wind is a factor — a low runner holds its line") cut, 2026-07-30
+    // coder fix pass: not sourced anywhere in 05-short-game.md (checked the whole file) —
+    // Coach Jack flagged it as unsourced and this either finds the real source or cuts it;
+    // no wind-and-bump-and-run guidance exists in the reference doc, so cut.
+    notWhen: 'Grass too thick to putt through — use the hybrid stroke instead',
+    callout: 'A real chip motion, not a putting stroke. 7-iron runs most, 9-iron flies more.',
+    footerRight: '28 / 43',
+    source: '05-short-game.md: "Hybrid Chip, Not the Same as a 7-Iron or 9-Iron Bump-and-Run"',
+    kid: {
+      ageGate: 'all',
+      headline: 'Roll it with your 9-iron',
+      useWhen: [
+        'Ball just off the green, green to work with',
+        'You don’t want a big swing with a lofted club',
+        'You want it rolling like a putt once it lands'
+      ],
+      notWhen: 'Buried in the rough? Use your sand wedge',
+      callout: 'Real chip motion, not a putt: about 30% flies, 70% rolls.',
+      footerRight: '28 / 43 · kid'
+    }
+  },
+
+  /* ── #29 · COMPARE (neutral variant) · source: 06-course-management.md "4. Center of the Green" ── */
+  {
+    id: 29,
+    format: 'COMPARE',
+    eyebrow: 'Course management',
+    headline: 'Center of the green, or the flag?',
+    compareVariant: 'neutral',
+    tileLeftTitle: 'Aim center',
+    tileRightTitle: 'Aim at the flag',
+    tileLeftBody: 'From outside 100 yards, or a tucked pin. A miss still finds the green.',
+    tileRightBody: 'Inside 80 yards in a good lie, or a middle pin with room around it.',
+    rows: [
+      { label: 'Distance', left: '100+ yards out', right: 'Inside 80 yards' },
+      { label: '80–100 yds', left: 'Pin tucked on an edge', right: 'Middle pin, room to miss' },
+      { label: 'Pin position', left: 'Tucked, on an edge', right: 'Middle, room to miss' },
+      { label: 'Lie', left: 'Any lie', right: 'Good lie only' }
+    ],
+    callout: 'A shot at the center that misses is still on the green. A shot at the flag isn’t.',
+    footerRight: '29 / 43',
+    source: '06-course-management.md: "4. Center of the Green, Every Time"',
+    kid: null // contradicts the kids rule: don't over-manage a kid's decisions — pga-coaching audit
+  },
+
+  /* ── #30 · DIAGRAM-POSITION · source: 06-course-management.md "5. When in Doubt, Take More Club" ── */
+  {
+    id: 30,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Course management',
+    headline: 'When in doubt, take more club',
+    heroKind: 'tile-hole',
+    leaders: [
+      { x: 648, y: 540, lx: 560, ly: 640 },
+      { x: 790, y: 430, lx: 900, ly: 360 },
+      { x: 300, y: 660, lx: 200, ly: 580 }
+    ],
+    checkpoints: [
+      'Most misses come up short, not long',
+      'Between two clubs, take the longer one',
+      'Single-digit handicap? Trust your number instead'
+    ],
+    callout: 'Never short over water. Never short on a par 3. More club is almost always right.',
+    footerRight: '30 / 43',
+    source: '06-course-management.md: "5. When in Doubt, Take More Club"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Take the next longer club',
+      checkpoints: [
+        'Most misses come up short, not long',
+        'Not sure? Take the longer club',
+        'Only 7 clubs — "longer" is easy to find'
+      ],
+      callout: 'When you’re not sure, grab the longer club.',
+      footerRight: '30 / 43 · kid'
+    }
+  },
+
+  /* ── #31 · DIAGRAM-POSITION · source: 06-course-management.md "3. Miss in the Right Place" ── */
+  {
+    id: 31,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Course management',
+    headline: 'Miss in the right place',
+    heroKind: 'tile-hole',
+    leaders: [
+      { x: 500, y: 470, lx: 400, ly: 370 },
+      { x: 848, y: 498, lx: 930, ly: 400 },
+      { x: 660, y: 565, lx: 560, ly: 660 }
+    ],
+    checkpoints: [
+      'Ask "where’s the trouble" first',
+      'Then ask "where’s the safe side"',
+      'Rough on the safe side beats a bunker'
+    ],
+    callout: 'Know your safe miss before you swing, not after.',
+    footerRight: '31 / 43',
+    source: '06-course-management.md: "3. Miss in the Right Place"',
+    kid: null // contradicts the kids rule: let them choose their shot — pga-coaching audit
+  },
+
+  /* ── #32 · DIAGRAM-POSITION · source: 06-course-management.md "1/2. Bogey Golf / Avoid the Double" ── */
+  {
+    id: 32,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Course management',
+    headline: 'Avoid the double',
+    heroKind: 'tile-hole',
+    leaders: [
+      { x: 640, y: 390, lx: 780, ly: 340 },
+      { x: 285, y: 555, lx: 170, ly: 470 },
+      { x: 380, y: 590, lx: 300, ly: 700 }
+    ],
+    checkpoints: [
+      'A bogey every hole is a strong round',
+      'Ask "how do I avoid a double," not par',
+      'Chip out sideways — take your medicine'
+    ],
+    callout: 'Above a 10 handicap: doubles cost more than birdies gain. Eliminate them first.',
+    footerRight: '32 / 43',
+    source: '06-course-management.md: "1. Bogey Golf Wins" + "2. Avoid the Double Bogey"',
+    kid: null // contradicts the kids rule: score doesn't matter, experience does — pga-coaching audit
+  },
+
+  /* ── #33 · SITUATION · source: 06-course-management.md "Approach Shot Decision Tree" ── */
+  {
+    id: 33,
+    format: 'SITUATION',
+    eyebrow: 'Course management',
+    headline: 'The approach decision tree',
+    useWhen: [
+      'Trouble short — more club. Trouble long — less club, or the front edge',
+      'Pin tucked on an edge — aim for the center',
+      'Inside 80 yards in a good lie — aim at the flag'
+    ],
+    notWhen: 'You’re already in trouble — the goal is avoiding a double. Chip out.',
+    callout: 'Ask trouble-short, then pin position, then distance. In that order.',
+    footerRight: '33 / 43',
+    source: '06-course-management.md: "Approach Shot Decision Tree"',
+    kid: null // contradicts the kids rule: let them choose their shot — pga-coaching audit
+  },
+
+  /* ── #34 · CHART (value rows) · source: 06-course-management.md "On-Course Fault → Fix Cheat Sheet" ── */
+  {
+    id: 34,
+    format: 'CHART',
+    eyebrow: 'Course management',
+    headline: 'On-course cheat sheet',
+    rows: [
+      { club: 'Missing trail side', value: 'Swing out to your trail side' },
+      { club: 'Missing lead side', value: 'Grip likely too strong — weaken it' },
+      { club: 'Every shot thin', value: 'Stay in your knee flex' },
+      { club: 'Every shot fat', value: 'Move the ball back' },
+      { club: 'Losing distance suddenly', value: 'Shorten to 80% effort' },
+      { club: '3-putting everything', value: 'Lag putt — get inside 3 feet' }
+    ],
+    callout: 'Match what’s happening to the fix, then go try it on the next shot.',
+    footerRight: '34 / 43',
+    source: '06-course-management.md: "On-Course Fault → Fix Cheat Sheet"',
+    kid: null // condensed adult diagnostic table, not a kid concept — coder judgment call
+  },
+
+  /* ── #35 · CHART (value rows) · source: 07-equipment.md "Shaft Flex Quick Reference" ── */
+  {
+    id: 35,
+    format: 'CHART',
+    eyebrow: 'Equipment',
+    headline: 'Shaft flex by swing speed',
+    rows: [
+      { club: 'Under 75 mph', value: 'Ladies (L) or Senior/Amateur (A)' },
+      { club: '75–85 mph', value: 'Senior/Amateur (A) or Regular (R)' },
+      { club: '85–95 mph', value: 'Regular (R)' },
+      { club: '95–105 mph', value: 'Stiff (S)' },
+      { club: '105+ mph', value: 'Extra Stiff (X)' }
+    ],
+    footnote: 'A proper fitting is always more accurate than a chart.',
+    callout: 'Wrong flex shows up as lost distance or a ballooning ball flight.',
+    footerRight: '35 / 43',
+    source: '07-equipment.md: "Shaft Flex Quick Reference"',
+    kid: null // junior sets ship junior flex by default, not a decision at the card level — audit
+  },
+
+  /* ── #36 · COMPARE (checkx) · source: 07-equipment.md "Junior" + "The Standard Kid Set" ──
+     Re-templated (Owen ui-ux "Pose + re-templating follow-up", 2026-07-30): this is an
+     either/or equipment choice, not a body position — was mis-templated as DIAGRAM-POSITION.
+     Kid variant becomes CHART via the active.format override (renderTipCard), new deviation
+     4 — "Your bag, all 7 clubs" is literally a reference table. */
+  {
+    id: 36,
+    format: 'COMPARE',
+    eyebrow: 'Equipment',
+    headline: 'Junior clubs aren’t optional',
+    compareVariant: 'checkx',
+    tileLeftTitle: 'Junior set',
+    tileRightTitle: 'Cut-down adult club',
+    tileLeftBody: 'Sized and weighted for their height — lets them turn and release the club.',
+    tileRightBody: 'Too long, too heavy, too stiff — forces a flat, arms-only swing.',
+    rows: [
+      { label: 'Fits their height', left: true, right: false },
+      { label: 'Light enough to release', left: true, right: false },
+      { label: 'Builds a real turn', left: true, right: false }
+    ],
+    callout: 'Proper junior clubs are a prerequisite for progress, not a luxury.',
+    footerRight: '36 / 43',
+    source: '07-equipment.md: "Junior (Ages 9–12)" + "The Standard Kid Set (Under 10), Reference Bag"',
+    kid: {
+      ageGate: 'all',
+      format: 'CHART', // schema extension: kid variant overrides the template, see renderTipCard
+      headline: 'Your bag, all 7 clubs',
+      rows: [
+        { club: 'Driver', value: 'Tee shots' },
+        { club: '3-wood', value: 'Long shots from the grass' },
+        { club: '5-iron, 7-iron', value: 'Fairway, your go-to irons' },
+        { club: '9-iron', value: 'Short approach shots' },
+        { club: 'Sand wedge', value: 'Bunkers and high chips' },
+        { club: 'Putter', value: 'On the green' }
+      ],
+      callout: 'Learn all seven. Then go find each one in your own bag.',
+      footerRight: '36 / 43 · kid'
+    }
+  },
+
+  /* ── #37 · COMPARE (checkx variant) · source: 07-equipment.md "Senior (Ages 60+)" ── */
+  {
+    id: 37,
+    format: 'COMPARE',
+    eyebrow: 'Equipment',
+    headline: 'Hybrids vs. long irons',
+    compareVariant: 'checkx',
+    tileLeftTitle: 'Long irons',
+    tileRightTitle: 'Hybrids',
+    tileLeftBody: 'Lower launch, less forgiving on mishits as swing speed drops.',
+    tileRightBody: 'Higher, softer landing and far more forgiving — same distance.',
+    rows: [
+      { label: 'Launch', left: false, right: true },
+      { label: 'Forgiveness', left: false, right: true },
+      { label: 'Soft landing', left: false, right: true }
+    ],
+    callout: 'A senior swap: hybrids replace the 4- and 5-iron. Gain is dispersion, not distance.',
+    footerRight: '37 / 43',
+    source: '07-equipment.md: "Senior (Ages 60+)" — Hybrids row',
+    kid: null // no hybrid and no long iron in the 7-club bag — pga-coaching audit
+  },
+
+  /* ── #38 · CHART (value rows) · source: 07-equipment.md "Grip Size Quick Reference" ──
+     Re-templated (Owen ui-ux "Pose + re-templating follow-up", 2026-07-30): the source is
+     a quick-reference table — a two-tile COMPARE would be structurally wrong here since
+     both extremes are wrong and the answer is the middle. Was mis-templated as
+     DIAGRAM-POSITION. */
+  {
+    id: 38,
+    format: 'CHART',
+    eyebrow: 'Equipment',
+    headline: 'Grip size matters',
+    rows: [
+      { club: 'Small hands', value: 'Undersize or Standard' },
+      { club: 'Average hands', value: 'Standard' },
+      { club: 'Large hands', value: 'Midsize' },
+      { club: 'Very large / arthritis', value: 'Oversize or Jumbo' }
+    ],
+    footnote: 'Too thin: wrists get over-active — hooks. Too thick: less feel, harder to square the face.',
+    callout: 'The wrong grip size builds a compensation into your swing you didn’t choose.',
+    footerRight: '38 / 43',
+    source: '07-equipment.md: "Grip Size Quick Reference"',
+    kid: null // junior grips are default, not a choice — pga-coaching audit
+  },
+
+  /* ── #39 · DIAGRAM-POSITION · source: 03-drills-library.md "Impact Bag (or Old Pillow)" ── */
+  {
+    id: 39,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Drills',
+    headline: 'The impact bag drill',
+    heroKind: 'faceOnImpactBag',
+    leaders: [
+      { x: 475, y: 742, lx: 250, ly: 720 },
+      { x: 481, y: 553, lx: 250, ly: 490 },
+      { x: 505, y: 656, lx: 250, ly: 650 }
+    ],
+    checkpoints: [
+      'Swing slowly, hold impact for 3 seconds',
+      'Check: are your hands ahead of the club?',
+      'Check: is your weight on your lead side?'
+    ],
+    callout: 'Freeze at impact. Check your hands — they must be ahead of the club head.',
+    footerRight: '39 / 43',
+    source: '03-drills-library.md: "Impact Bag (or Old Pillow)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Freeze at impact',
+      checkpoints: [
+        'Swing gently into a firm pillow',
+        'Hold it there for 3 seconds',
+        'Check: are your hands in front of it?'
+      ],
+      callout: 'A pillow works just as well as a real impact bag at this age.',
+      footerRight: '39 / 43 · kid'
+    }
+  },
+
+  /* ── #40 · DIAGRAM-POSITION · source: 03-drills-library.md "Towel Under Arms (Connection)" ── */
+  {
+    id: 40,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Drills',
+    headline: 'Towel under arms',
+    heroKind: 'faceOnTowel',
+    leaders: [
+      { x: 494, y: 462, lx: 250, ly: 420 },
+      { x: 500, y: 761, lx: 255, ly: 740 },
+      { x: 586, y: 464, lx: 810, ly: 420 }
+    ],
+    checkpoints: [
+      'Hold a towel under both arms, at your chest',
+      'Hit shots without letting it drop',
+      'A dropped towel means your arms came off your chest'
+    ],
+    callout: 'Arms on the body. Don’t let the towel fall.',
+    footerRight: '40 / 43',
+    source: '03-drills-library.md: "Towel Under Arms (Connection)"',
+    kid: {
+      ageGate: '8-12',
+      headline: 'Don’t drop the towel',
+      checkpoints: [
+        'Hold a towel under both arms',
+        'Swing without letting it fall',
+        'If it drops, reset and try again'
+      ],
+      callout: 'Keep your arms on your body. Don’t drop the towel.',
+      footerRight: '40 / 43 · kid'
+    }
+  },
+
+  /* ── #41 · DIAGRAM-SEQUENCE · source: 03-drills-library.md "Pump Drill" ──
+     Adult-only: this is the drill for #18 (casting), which the kid audit already ruled
+     adult-only. Its kid-facing content ships in #12-kid as "hips before arms". */
+  {
+    id: 41,
+    format: 'DIAGRAM-SEQUENCE',
+    eyebrow: 'Drills',
+    headline: 'The pump drill',
+    steps: [
+      'Pause at the top for 1–2 seconds',
+      'Hips rotate toward the target first',
+      'Hold the wrist angle as hips move',
+      'Release through at hip height'
+    ],
+    callout: 'Pause at the top. Hips go first. The club waits, then fires through.',
+    footerRight: '41 / 43',
+    source: '03-drills-library.md: "Pump Drill (Lag & Downswing Sequence)"',
+    kid: null // adult-only — see comment above (this is #18's drill; kid content lives in #12-kid)
+  },
+
+  /* ── #42 · DIAGRAM-POSITION · source: 03-drills-library.md "Alignment Stick Ground Station" ── */
+  {
+    id: 42,
+    format: 'DIAGRAM-POSITION',
+    eyebrow: 'Drills',
+    headline: 'Alignment stick station',
+    heroKind: 'tile-station',
+    leaders: [
+      { x: 720, y: 500, lx: 800, ly: 600 },
+      { x: 330, y: 684, lx: 250, ly: 750 },
+      { x: 515, y: 655, lx: 620, ly: 730 }
+    ],
+    // LH note (Owen ui-ux spec, 2026-07-30, "keep the LH note in the card source"): the
+    // top-down station diagram is NOT mirrored for LH golfers (course/ground layouts
+    // aren't handed, per shared decision 3 — renderDiagramPositionCard skips the mirror
+    // wrap for tile-* heroKinds). For a LH golfer the target stick still points at the
+    // target; the toe stick runs parallel on their right instead of their left. Not put
+    // in a 4th checkpoint row — the 3 checkpoints already map 1:1 to the 3 leader dots
+    // (target stick / toe stick / "check yourself"), and the render engine caps
+    // checkpoints at 3 rows, so a 4th row would silently drop row 3 instead of adding a
+    // note. Flagged here for a future LH-specific copy pass if this becomes a problem.
+    checkpoints: [
+      'One stick on the ground, aimed at the target',
+      'A second stick parallel, along your toes',
+      'Hit shots and check yourself against them'
+    ],
+    callout: 'Sticks don’t lie. Aligned right, you’ll see it. Not aligned, you’ll see that too.',
+    footerRight: '42 / 43',
+    source: '03-drills-library.md: "Alignment Stick Ground Station"',
+    kid: {
+      ageGate: 'all',
+      headline: 'Sticks don’t lie',
+      checkpoints: [
+        'One stick pointing straight at the target',
+        'A second stick next to your toes',
+        'Hit balls and check your aim'
+      ],
+      callout: 'If the sticks agree with you, you’re aligned. If not, now you know.',
+      footerRight: '42 / 43 · kid'
+    }
+  },
+
+  // ── #43 · SITUATION · source: 05-short-game.md "Hybrid Bump-and-Run (30–50 Yards, Light
+  // Rough)" — previously held back as too thin (see removed placeholder comment); that
+  // subsection was written out in full 2026-08-10 and this card is built from it. Headline
+  // deliberately mirrors #20's "Putt with your hybrid" ("Chip it with your hybrid") so the
+  // two cards read as a contrasting pair — same club, two different strokes, two different
+  // lies/distances — rather than looking like duplicates.
+  {
+    id: 43,
+    format: 'SITUATION',
+    eyebrow: 'Short game',
+    headline: 'Chip it with your hybrid',
+    useWhen: [
+      '30–50 yards out, through light rough',
+      'A wedge there would dig, or need a full swing',
+      'Chip motion, some hinge — wide sole resists digging'
+    ],
+    notWhen: 'Clean fairway (use a wedge) or the fringe (that’s the putting stroke)',
+    callout: 'Chip it, don’t putt it. Roughly 25% carries, 75% rolls — calibrate your own.',
+    footerRight: '43 / 43',
+    source: '05-short-game.md: "Hybrid Bump-and-Run (30–50 Yards, Light Rough)"',
+    // No kid variant (kid-applicability audit): kids don't carry a hybrid in the 7-club
+    // reference bag (Putter/SW/9i/7i/5i/3-wood/Driver) — same reasoning already applied to
+    // #20's kid: null.
+    kid: null
+  }
+];
+
+
+/* ── PWA integration: Home rotator + Tips library page ──
+   Both pull from the same TIP_CARDS data source (per Jeremy's decision this
+   session: data-driven, not one-off images, so this can be personalized later —
+   e.g. swapping in a user's real skill level or miss pattern). Kid vs. adult
+   register is selected today from profile.isKid; that is the seam a future
+   pass would extend (skill level, recent miss pattern, etc.) without touching
+   the templates. */
+// Normalizes the active profile's hand to the 'L'|'R' the render functions expect, using
+// the same profile.hand==='l'||'left' pattern already used throughout the app (renderRange,
+// renderStrategy, renderShortGame, the caddie system prompts, etc.) — real hook, not a
+// dead parameter: LH family members (Son/daughter per Jeremy's profile notes) now actually
+// see mirrored DIAGRAM figures instead of a hardcoded RH pose.
+function tcActiveHand() {
+  return (profile && (profile.hand === 'l' || profile.hand === 'left')) ? 'L' : 'R';
+}
+function tipsHomeInsertHtml() {
+  if (typeof TIP_CARDS === 'undefined' || !TIP_CARDS.length) return '';
+  // Deterministic daily rotation — no randomness, matches the house rule used
+  // elsewhere in this app (rewards, markers) even though this isn't a reward.
+  const dayIdx = Math.floor(Date.now() / 86400000) % TIP_CARDS.length;
+  const entry = TIP_CARDS[dayIdx];
+  const isKid = !!(profile && profile.isKid);
+  let svg;
+  try { svg = renderTipCard(entry, { kid: isKid, hand: tcActiveHand() }); } catch (e) { console.warn('tip card render failed', e); return ''; }
+  return `
+    <div class="sec-title">Tip of the day</div>
+    <div class="tip-card-wrap" onclick="goPage('tips')">${svg}</div>
+  `;
+}
+function renderTips() {
+  const el = document.getElementById('pg-tips');
+  if (!el) return;
+  if (typeof TIP_CARDS === 'undefined' || !TIP_CARDS.length) { el.innerHTML = ''; return; }
+  const isKid = !!(profile && profile.isKid);
+  const hand = tcActiveHand();
+  const cards = TIP_CARDS.map(entry => {
+    let svg;
+    try { svg = renderTipCard(entry, { kid: isKid, hand }); } catch (e) { console.warn('tip card render failed', entry && entry.id, e); return ''; }
+    return `<div class="tip-card-wrap">${svg}</div>`;
+  }).join('');
+  el.innerHTML = `
+    <button class="back-chip" onclick="goPage('home')"><i class="ti ti-arrow-left"></i> Home</button>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Tips</div>
+    <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${isKid ? 'Bite-size lessons, in your voice.' : 'Every tip card, pulled from the same coaching data as your plan.'}</div>
+    <div class="tip-card-lib">${cards}</div>
+  `;
+}
+
 </script>
 </body>
 </html>
