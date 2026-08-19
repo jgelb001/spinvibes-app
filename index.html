@@ -1774,7 +1774,11 @@ function renderHome() {
   const reg  = rounds.filter(_statsEligible);      // regulation 18s only, for Best
   const best = reg.length ? Math.min(...reg.map(r=>r.total)) : null;
   const last = rs.length ? rs[rs.length-1] : null;
-  const weakMap = {full_swing:'Full Swing',short_game:'Short Game',putting:'Putting',course_mgmt:'Course Mgmt',mental:'Mental',fitness:'Fitness',consistency:'Consistency'};
+  // Canonical vocabulary as of session 70+ (matches the onboarding wizard's step 6 and
+  // the iOS app's RangeView.weaknessDrills). The old full_swing/fitness/consistency keys
+  // were dead — `weaknesses` was hardcoded to [] everywhere in this file until the wizard
+  // started actually writing it, so there's no legacy data under the old vocabulary to carry forward.
+  const weakMap = {driving:'Driving',irons:'Iron Play',shortgame:'Short Game',putting:'Putting',course:'Course Mgmt',mental:'Mental Game'};
   const wPills = (p.weaknesses||[]).map(w=>`<span class="pill">${weakMap[w]||w}</span>`).join('');
 
   document.getElementById('pg-home').innerHTML = `
@@ -2111,7 +2115,20 @@ function renderRange() {
     ],
   };
   const plan = plans[skill]||plans.mid;
-  const tip = {break100:'Just make contact and get it airborne, picture sweeping the ball cleanly off the turf. Nothing else matters yet.',break90:'No blow-up holes. One clean shot at a time, bogey is fine, it\'s the 8s and 9s that wreck the card.',break80:'Lag putting and the 100–150 range. That\'s where your shots are quietly leaking away.',break70:'Wedge matrix and proximity. Inside 120 yards you should have an exact number for every swing, no guessing.',consistency:'Same routine, same tempo, every time. You\'re grooving a habit, like a signature you can sign without looking.',beginner:'Fundamentals first: grip, stance, contact. Build the house before you paint it.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'The muscle memory is still in there, wake it up with rhythm and contact, not distance.'}[goal]||'Quality over quantity.';
+  // Session 70+: up to 2 drills, one per weakness the onboarding wizard captured
+  // (guide_users.weaknesses). Kept byte-for-byte in sync with the iOS app's
+  // RangeView.weaknessDrills — same canonical vocabulary, same copy — so a
+  // family switching between the app and this web view sees the same plan.
+  const WEAKNESS_DRILLS = {
+    driving:{t:'Fairway Finder, 15 min',b:'Pick a 30-yard-wide corridor down the range. 10 drivers, count how many stay inside it. Track the number, not the distance, that\'s the number that actually saves strokes off the tee.'},
+    irons:{t:'Strike Ladder, 15 min',b:`One iron, three targets at increasing distance. Move up only after 3 in a row find the target. ${hand==='left'?'Right':'Left'} hand leads through impact, ball first, then turf.`},
+    shortgame:{t:'Up-and-Down Ladder, 15 min',b:'10 balls from just off the green: chip, then putt out. Count how many take 2 shots or fewer to hole out. That number is your real short-game scorecard.'},
+    putting:{t:'Lag & Make Circuit, 15 min',b:'5 lag putts from 30 feet (picture a 3-foot circle around the hole, land inside it), then 10 must-make putts from 5 feet. Distance control first, confidence second.'},
+    course:{t:'Smart Target Practice, 10 min',b:'Before every ball, say your target out loud, and pick the fattest part of the green, not the flag. Course management is a habit you build on the range, not a decision you make for the first time mid-round.'},
+    mental:{t:'One Swing Thought Drill, 10 min',b:'Pick ONE thought before you start and keep it for the whole bucket, even after a bad shot. Notice how much steadier your misses get when you stop switching thoughts mid-session.'},
+  };
+  const weaknessPlan = (profile.weaknesses||[]).slice(0,2).map(w=>WEAKNESS_DRILLS[w]).filter(Boolean);
+  const tip = {break120:'Get the ball moving forward every hole. Contact and getting it airborne, nothing fancy yet.',break100:'Just make contact and get it airborne, picture sweeping the ball cleanly off the turf. Nothing else matters yet.',break90:'No blow-up holes. One clean shot at a time, bogey is fine, it\'s the 8s and 9s that wreck the card.',break80:'Lag putting and the 100–150 range. That\'s where your shots are quietly leaking away.',break70:'Wedge matrix and proximity. Inside 120 yards you should have an exact number for every swing, no guessing.',consistency:'Same routine, same tempo, every time. You\'re grooving a habit, like a signature you can sign without looking.',beginner:'Fundamentals first: grip, stance, contact. Build the house before you paint it.',fun:'Hit the shots you enjoy. Practice should feel good.',return:'The muscle memory is still in there, wake it up with rhythm and contact, not distance.'}[goal]||'Quality over quantity.';
 
   document.getElementById('pg-range').innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:3px;">
@@ -2137,6 +2154,8 @@ function renderRange() {
     </div>
     <div class="sec-title">Session Plan</div>
     ${plan.map(d=>`<div class="drill"><div class="drill-t">${d.t}</div><div class="drill-b">${d.b}</div></div>`).join('')}
+    ${weaknessPlan.length ? `<div class="sec-title">Your Focus Areas</div>
+    ${weaknessPlan.map(d=>`<div class="drill"><div class="drill-t">${d.t}</div><div class="drill-b">${d.b}</div></div>`).join('')}` : ''}
     <div class="sec-title">Quick Drills</div>
     <div class="drill"><div class="drill-t">10-Shot Focus Drill</div><div class="drill-b">One swing thought. 10 balls. Rate each shot 1-5. Average 3.5+ = move on.</div></div>
     <div class="drill"><div class="drill-t">Alignment Check</div><div class="drill-b">Club on ground pointing at target. Feet, hips, shoulders parallel. ${hand==='left'?'As a lefty, your shoulders open easily, check every session.':''}</div></div>
