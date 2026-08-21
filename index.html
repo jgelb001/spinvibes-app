@@ -1024,9 +1024,84 @@ function openSettings() {
       <div id="set-family"></div>
       <button id="set-add-member" class="mi" onclick="addMemberRow()" style="width:100%;background:rgba(36,150,87,0.1);border:1px dashed var(--green);color:var(--green);font-weight:700;cursor:pointer;text-align:center;margin-bottom:0;">+ Add family member</button>
       ` : ''}
+
+      ${editMain && userId==='a1aaaaaa-0000-4000-8000-000000000001' ? `
+      <!-- Kid device pairing (session 71, Thread C) — same beta-only gate as the
+           Clubhouse card above; lift both together once the kid section opens up
+           post-counsel. Replaces "screenshot/text the ?u= link" with a short-lived
+           code so pairing a kid's device is an explicit parent action, not a link
+           that lives forever wherever it was shared. -->
+      <div class="sec-title">Pair a kid's device</div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Generates a one-time code, good for 10 minutes. Tell it to your kid (don't screenshot or text it) and have them enter it on their own device at the Clubhouse sign-in — that links it to this family. Generating a new code cancels any earlier one.</div>
+      <div id="kid-pair-box" style="border:1px solid var(--border);border-radius:12px;padding:14px;"></div>
+      ` : ''}
     </div>`;
   if (editMain) renderFamilyRows();
+  if (editMain && userId==='a1aaaaaa-0000-4000-8000-000000000001') renderKidPairingBox();
 }
+
+// ── KID DEVICE PAIRING (session 71) ─────────────────────────────────
+let _kidPairTimer = null;
+function renderKidPairingBox(idle){
+  const box = document.getElementById('kid-pair-box'); if(!box) return;
+  if (_kidPairTimer) { clearInterval(_kidPairTimer); _kidPairTimer = null; }
+  box.innerHTML = `<button id="kid-pair-go" onclick="generateKidPairingCode()" style="width:100%;background:var(--gold);color:#1a1300;border:none;border-radius:10px;padding:12px;font-weight:800;cursor:pointer;touch-action:manipulation;">Generate a pairing code</button>
+    <div id="kid-pair-msg" style="font-size:0.75rem;color:var(--muted);margin-top:8px;"></div>`;
+}
+async function generateKidPairingCode(){
+  const msg = document.getElementById('kid-pair-msg');
+  const btn = document.getElementById('kid-pair-go');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) { if(msg) msg.textContent = 'Sign in again to pair a device.'; return; }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_pairing_code`, {
+      method: 'POST',
+      headers: { ...SB_HDR, Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ p_guide_user_id: userId })
+    });
+    if (!res.ok) { if(msg) msg.textContent = "Couldn't generate a code — try again in a moment."; renderKidPairingBoxReset(); return; }
+    const out = await res.json();
+    showKidPairingCode(out.code, out.expires_at);
+  } catch(e) {
+    if(msg) msg.textContent = "Couldn't generate a code — check your connection and try again.";
+  }
+}
+function showKidPairingCode(code, expiresAt){
+  const box = document.getElementById('kid-pair-box'); if(!box) return;
+  const expiresMs = new Date(expiresAt).getTime();
+  const tick = () => {
+    const secs = Math.max(0, Math.round((expiresMs - Date.now())/1000));
+    const m = Math.floor(secs/60), s = String(secs%60).padStart(2,'0');
+    const t = document.getElementById('kid-pair-countdown');
+    if (t) t.textContent = secs>0 ? `Expires in ${m}:${s}` : 'Expired — generate a new one.';
+    if (secs<=0 && _kidPairTimer) { clearInterval(_kidPairTimer); _kidPairTimer = null; }
+  };
+  box.innerHTML = `
+    <div style="text-align:center;">
+      <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:2rem;letter-spacing:4px;color:var(--gold);">${esc(code)}</div>
+      <div id="kid-pair-countdown" style="font-size:0.72rem;color:var(--muted);margin-top:4px;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button onclick="generateKidPairingCode()" style="flex:1;background:rgba(36,150,87,0.1);border:1px solid var(--green);color:var(--green);border-radius:8px;padding:10px;font-weight:700;cursor:pointer;touch-action:manipulation;">New code</button>
+      <button onclick="revokeKidPairingCode()" style="flex:1;background:none;border:1px solid var(--border);color:rgba(192,57,43,0.85);border-radius:8px;padding:10px;font-weight:700;cursor:pointer;touch-action:manipulation;">Revoke</button>
+    </div>`;
+  tick();
+  _kidPairTimer = setInterval(tick, 1000);
+}
+async function revokeKidPairingCode(){
+  try {
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/revoke_pairing_codes`, {
+      method: 'POST',
+      headers: { ...SB_HDR, Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ p_guide_user_id: userId })
+    });
+  } catch(e) {}
+  renderKidPairingBox();
+}
+function renderKidPairingBoxReset(){ renderKidPairingBox(); }
 
 // ── IN-APP FAMILY EDITOR ─────────────────────────────────────────
 const MEMBER_GOAL_OPTS = [['fun','Fun first'],['learn','Learning basics'],['compete','Wants to compete'],['return','Returning player']];
