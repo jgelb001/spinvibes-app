@@ -172,7 +172,7 @@
     #rm-rt     { text-align: right; line-height: 1; display: none; }
     #rm-rt-score { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -0.5px; font-size: 1.6rem; color: var(--cream); }
     #rm-rt-diff  { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.5px; color: var(--muted); }
-    /* Kid-proof exit (2026-07-02, Timmy interview bug): big tap target, visible in EVERY round state. */
+    /* Kid-proof exit: big tap target, visible in EVERY round state. */
     #rm-close-btn { background: var(--surf2); border: 1px solid var(--border); border-radius: 10px; color: var(--cream); font-size: 1.1rem; padding: 9px 14px; min-width: 44px; min-height: 44px; cursor: pointer; touch-action: manipulation; }
     #rm-body   { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 20px; padding-bottom: 12px; }
     #rm-footer { flex-shrink: 0; display: none; background: var(--bg); border-top: 1px solid var(--border); padding: 8px 16px calc(8px + env(safe-area-inset-bottom,0px)); }
@@ -410,7 +410,7 @@ let _famIdx = 0, _famRound = {};
 const SV_GOLD = '#D4A843';                 // account holder, reserved
 // Green is the SYSTEM colour (forest-ink anchor, kelly actions, skill markers) —
 // deliberately NOT in the per-person set, so no member (and no kid header) ever
-// renders as the generic "AI green." Each entry is a distinct, non-green identity.
+// renders in the system color. Each entry is a distinct, non-green identity.
 const PLAYER_PALETTE = ['#378ADD','#D4537E','#7F77DD','#E08D3C','#1C7C8A','#8A2D2A','#455A6B','#B0568C'];
 function playerColor(p){
   if(!p) return SV_GOLD;
@@ -425,7 +425,7 @@ function playerColor(p){
 function famPlayerColor(p, i){ return playerColor(p); }
 // Darken a hex toward black by factor f (0..1). Used to build a deep, rich header
 // shade from a member's identity color so a kid's chrome is THEIRS, not the
-// generic forest-green that read as "AI green."
+// generic system forest-green.
 function shade(hex, f){
   const h=String(hex).replace('#',''); if(h.length<6) return hex;
   const r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
@@ -641,9 +641,9 @@ function suggestClub(yds) {
       profile = rows[0];
       localStorage.setItem('sv-profile-'+userId, JSON.stringify(profile));
       // If authed and profile not yet linked, link ONLY if this device explicitly
-      // asked to claim THIS profile (FIX 2026-07-01, open-bug #1: signing in used
-      // to claim whatever unclaimed profile was on screen — e.g. someone else's
-      // browsed ?u= demo link. Claim now requires the "Save your progress" tap.)
+      // asked to claim THIS profile — otherwise signing in could claim whatever
+      // unclaimed profile happens to be on screen (e.g. someone else's browsed
+      // ?u= demo link). Claim now requires the "Save your progress" tap.
       if (session && !profile.auth_id && _claimIntended()) linkAuthToProfile(session.user.id);
       if (!cached) bootApp(); else renderHome();
     } else if (!cached) { showErr("Couldn't find your profile."); }
@@ -858,9 +858,9 @@ function toggleDark() {
 // Restore saved dark mode preference on load (Fable default is light)
 try { if (localStorage.getItem('sv-dark-mode') === '1') document.body.classList.add('sv-dark'); } catch(e) {}
 
-// ── FAMILY RESOURCES — the parent page (adult profiles only; approved off
-//    parent-resources-mock.html, session 53). Brand-neutral on purpose: the
-//    privacy promise is "no ads, no shopping links", so nothing here sells. ──
+// ── FAMILY RESOURCES — the parent page (adult profiles only). Brand-neutral
+//    on purpose: the privacy promise is "no ads, no shopping links", so
+//    nothing here sells. ──
 function frIcon(kind){
   const s = 'width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
   if (kind==='clubs')   return `<svg ${s}><path d="M8 3l1 13"/><path d="M9 16c-3 0-5 1-5 2.5S6.5 21 9 21s5-1 5-2.5"/></svg>`;
@@ -1026,11 +1026,11 @@ function openSettings() {
       ` : ''}
 
       ${editMain && userId==='a1aaaaaa-0000-4000-8000-000000000001' ? `
-      <!-- Kid device pairing (session 71, Thread C) — same beta-only gate as the
-           Clubhouse card above; lift both together once the kid section opens up
-           post-counsel. Replaces "screenshot/text the ?u= link" with a short-lived
-           code so pairing a kid's device is an explicit parent action, not a link
-           that lives forever wherever it was shared. -->
+      <!-- Kid device pairing — same beta-only gate as the Clubhouse card above;
+           lift both together once the kid section is ready for general release.
+           Replaces "screenshot/text the ?u= link" with a short-lived code so
+           pairing a kid's device is an explicit parent action, not a link that
+           lives forever wherever it was shared. -->
       <div class="sec-title">Pair a kid's device</div>
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px;line-height:1.5;">Generates a one-time code, good for 10 minutes. Tell it to your kid (don't screenshot or text it) and have them enter it on their own device at the Clubhouse sign-in — that links it to this family. Generating a new code cancels any earlier one.</div>
       <div id="kid-pair-box" style="border:1px solid var(--border);border-radius:12px;padding:14px;"></div>
@@ -1040,7 +1040,7 @@ function openSettings() {
   if (editMain && userId==='a1aaaaaa-0000-4000-8000-000000000001') renderKidPairingBox();
 }
 
-// ── KID DEVICE PAIRING (session 71) ─────────────────────────────────
+// ── KID DEVICE PAIRING ─────────────────────────────────
 let _kidPairTimer = null;
 function renderKidPairingBox(idle){
   const box = document.getElementById('kid-pair-box'); if(!box) return;
@@ -1328,8 +1328,8 @@ const KID_MILESTONES = [
 const DRILL_FUND_ICON = { balance:'ti-windmill', tempo:'ti-clock', contact:'ti-golf', connection:'ti-link', shortgame:'ti-target', body:'ti-stretching', knowledge:'ti-bulb' };
 const DRILL_WHERE = { anywhere:'Anywhere', errand:'On an errand', home:'At home', outside:'Outside' };
 // Today's kid drill, date-seeded (same seed as the iOS pool so a family matches).
-// SESSION 51: the "I did it" 7/14/30 milestone counter is now WIRED on web —
-// same backend as iOS (record_daily_drill / get_drill_progress RPCs, session 47).
+// The "I did it" 7/14/30 milestone counter is wired on web using the same
+// backend as iOS (record_daily_drill / get_drill_progress RPCs).
 function _todayISO(){ return new Date().toISOString().slice(0,10); }
 function _drillProgKey(){ return 'sv-drillprog-'+(userId||'g')+'-'+activeKey; }
 function _drillProgCache(){ try{ return JSON.parse(localStorage.getItem(_drillProgKey()))||{count:0,last_day:null}; }catch(e){ return {count:0,last_day:null}; } }
@@ -1672,7 +1672,7 @@ function openMemory(i){
 // "best", average, or index, so a 67 on a par-3 course can't masquerade as your best.
 function _statsEligible(r){ return !r.practice && (r.round_type||'regulation_18')==='regulation_18'; }
 
-// ── KID AVATAR RENDERER (ported 1:1 from spinvibes-kid avatarSvg, 2026-07-02) ──
+// ── KID AVATAR RENDERER (ported 1:1 from spinvibes-kid avatarSvg) ──
 // Draws a kid's REAL synced ball from their kid_state blob (get_kid_state RPC)
 // so the "Your Clubhouse" chip shows their avatar, not a generic face.
 // Art is a verbatim port of the kid section's enamel-pin builder — if the kid
@@ -1766,7 +1766,7 @@ const _kidAv = (() => {
     if(id==='sh_saddle')return base('#F4F1E8',`<path d="M98 266 a8 8 0 0 1 8 8" stroke="${INK}" stroke-width="3" fill="none"/><path d="M154 266 a8 8 0 0 1 8 8" stroke="${INK}" stroke-width="3" fill="none"/>`);
     return base('#ffffff');
   }
-  /* premium rendering pass (2026-07-06) — MUST match spinvibes-kid avatarSvg()
+  /* premium rendering pass — MUST match spinvibes-kid avatarSvg()
      and iOS KidAvatar.swift; shading only, zero geometry changes. */
   function shade(hex,p){
     hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
@@ -1849,7 +1849,7 @@ function renderHome() {
   const reg  = rounds.filter(_statsEligible);      // regulation 18s only, for Best
   const best = reg.length ? Math.min(...reg.map(r=>r.total)) : null;
   const last = rs.length ? rs[rs.length-1] : null;
-  // Canonical vocabulary as of session 70+ (matches the onboarding wizard's step 6 and
+  // Canonical vocabulary (matches the onboarding wizard's step 6 and
   // the iOS app's RangeView.weaknessDrills). The old full_swing/fitness/consistency keys
   // were dead — `weaknesses` was hardcoded to [] everywhere in this file until the wizard
   // started actually writing it, so there's no legacy data under the old vocabulary to carry forward.
@@ -1895,8 +1895,8 @@ function renderHome() {
 
     ${kidDrillHtml()}
 
-    <!-- kid section (Clubhouse) — prototype link-out, JEREMY'S FAMILY ONLY while in beta;
-         open to everyone once the kid section is launch-ready (post-COPPA counsel) -->
+    <!-- kid section (Clubhouse) — prototype link-out, internal test family only while in
+         beta; open to everyone once the kid section is launch-ready and COPPA-compliant -->
     ${userId==='a1aaaaaa-0000-4000-8000-000000000001' ? `
     <div class="card" onclick="window.open('https://jgelb001.github.io/spinvibes-kid/?kid='+encodeURIComponent(activeKey)+'&nick='+encodeURIComponent('${esc(pfirst)}')+'&age='+encodeURIComponent('${p.age||''}')+'&hand='+encodeURIComponent('${p.hand||''}')+'&u='+encodeURIComponent(userId),'_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
       <span class="mk" style="width:52px;height:52px;">
@@ -1991,9 +1991,9 @@ function renderBag() {
 }
 
 // ── CADDIE ───────────────────────────────────────────────────────
-// KID SAFETY (session-43 rule, closed 2026-07-02): a child's NAME never goes
-// to the LLM, and under-16 profiles get preset tap-questions only — no free
-// text, no mic. caddieName() is the single choke point for both prompts.
+// KID SAFETY: a child's NAME never goes to the LLM, and under-16 profiles get
+// preset tap-questions only — no free text, no mic. caddieName() is the
+// single choke point for both prompts.
 function caddieName(p){ return (p && p.isKid) ? 'this junior golfer' : (p.name || 'a golfer'); }
 function caddieKidLine(p){ return (p && p.isKid) ? ' You are talking with a junior golfer: keep it simple, positive, and age-appropriate.' : ''; }
 // Preset tap-questions for kid profiles (self-contained — no typing needed).
@@ -2190,7 +2190,7 @@ function renderRange() {
     ],
   };
   const plan = plans[skill]||plans.mid;
-  // Session 70+: up to 2 drills, one per weakness the onboarding wizard captured
+  // Up to 2 drills, one per weakness the onboarding wizard captured
   // (guide_users.weaknesses). Kept byte-for-byte in sync with the iOS app's
   // RangeView.weaknessDrills — same canonical vocabulary, same copy — so a
   // family switching between the app and this web view sees the same plan.
@@ -2320,8 +2320,8 @@ function _releaseWake(){ try { _wakeLock?.release?.(); } catch(e){} _wakeLock=nu
 // Re-acquire if the tab was backgrounded then refocused mid-round
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && document.getElementById('round-modal')?.classList.contains('on')) _requestWake(); });
 
-/* ── ROUND-MODAL NAV (2026-07-02, closes the Timmy-interview bug: "no back
-   button in round tracking — the kid got stuck"). Three guarantees:
+/* ── ROUND-MODAL NAV — closes a real bug where kids got stuck mid-round with
+   no way back. Three guarantees:
    1. The header ✕ is VISIBLE in every round state (it was hidden during play).
    2. The phone's back button/gesture works: the modal pushes a history entry;
       popstate routes through the same confirm-and-save exit. Canceling the
@@ -2568,9 +2568,9 @@ function setNine(which){
     b.style.border = on?'none':'1px solid var(--border)';
   });
 }
-// FIX (2026-07-01, open-bug #2): a 9-hole round used the tee's FULL-18 par and
-// front-9 pars unconditionally → vs-par, badges and stats were wrong. Slice the
-// tee card to the holes actually played and compute par from the slice.
+// A 9-hole round used the tee's FULL-18 par and front-9 pars unconditionally
+// → vs-par, badges and stats were wrong. Slice the tee card to the holes
+// actually played and compute par from the slice.
 function teeSlices(tee, numH, par3){
   if(par3) return { holePars:Array(numH).fill(3), yardages:Array(numH).fill(null), par:numH*3 };
   let hp = (tee?.holePars&&tee.holePars.length) ? tee.holePars.slice() : Array(numH).fill(4);
@@ -2732,7 +2732,7 @@ function renderHole() {
 
   // Footer
   const footer=document.getElementById('rm-footer');
-  footer.style.display='block'; /* BUG FIX 2026-07-13: '' fell back to the stylesheet's display:none — footer (strokes + Next) never showed */
+  footer.style.display='block'; /* '' falls back to the stylesheet's display:none — footer (strokes + Next) never shows without this */
   footer.innerHTML=`
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
       <button onclick="${_holeIdx===0?'exitRoundModal()':'holeBack()'}" style="flex-shrink:0;height:50px;padding:0 12px;border-radius:10px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:1.1rem;cursor:pointer;touch-action:manipulation;">←</button>
@@ -2807,7 +2807,7 @@ function setMiss(group, val) {
   });
 }
 
-// Shared hole-caddie panel (solo + family). 2026-07-13: family rounds had NO caddie; now both flows render this.
+// Shared hole-caddie panel (solo + family) — family rounds had no caddie before this; now both flows render it.
 function _holeCaddiePanel(h){
   return `
     <div style="margin-bottom:14px;">
@@ -2872,7 +2872,7 @@ function holePhotoSelected(input) {
   reader.readAsDataURL(file);
 }
 function removeHolePhoto(idx) { _holes[_holeIdx].photos.splice(idx,1); renderHole(); }
-// Family-round hole photos (communal — shared to every member's gallery on save). 2026-07-13.
+// Family-round hole photos (communal — shared to every member's gallery on save).
 function famHolePhotoSelected(input) {
   const file=input.files[0]; if(!file) return; input.value='';
   const reader=new FileReader();
@@ -2963,7 +2963,7 @@ async function _uploadAppHolePhotos(roundId) {
 }
 
 // Upload family-round communal photos to the shared bucket under one prefix.
-// Mirrors _uploadAppHolePhotos but iterates _famHoles. 2026-07-13.
+// Mirrors _uploadAppHolePhotos but iterates _famHoles.
 async function _uploadFamHolePhotos(roundId) {
   for (const h of _famHoles) {
     if (!h.photos?.length) continue;
@@ -3169,7 +3169,7 @@ function renderFamHole(){
     ${rows}
     ${_holeCaddiePanel(h)}`;
   renderHoleCaddieMessages();
-  const footer=document.getElementById('rm-footer'); footer.style.display='block'; /* BUG FIX 2026-07-13: '' fell back to display:none — family round had NO Next hole/exit footer */
+  const footer=document.getElementById('rm-footer'); footer.style.display='block'; /* '' falls back to display:none — family round has no Next hole/exit footer without this */
   footer.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <button onclick="${_famIdx===0?'exitRoundModal()':'famHoleBack()'}" style="flex-shrink:0;height:50px;padding:0 14px;border-radius:10px;background:var(--surf2);border:1px solid var(--border);color:var(--cream);font-size:1.1rem;cursor:pointer;touch-action:manipulation;">←</button>
@@ -4552,7 +4552,7 @@ function showToast(msg,type) {
    TIP CARDS — render library
    WrenHouse Golf, spinvibes-app (app.spinvibes.com)
    Source of truth: Golf/TIP-CARDS-VISUAL-SPEC.md + Golf/TIP-CARDS-CONTENT-PLAN.md
-   Locked 2026-07-29/30. Do not change tokens/bands without updating the spec.
+   Locked. Do not change tokens/bands without updating the spec.
    ════════════════════════════════════════════════════════════════════ */
 
 /* ── TOKENS (exact hex from the spec, never re-derive) ── */
@@ -4573,7 +4573,7 @@ const TC = {
   slate:      '#3E5C76'
 };
 
-/* ── CANVAS / BANDS (locked 2026-07-29) ── */
+/* ── CANVAS / BANDS (locked) ── */
 const TC_W = 1080, TC_H = 1350, TC_SAFE = 72;
 const BAND = {
   heroTop: 0, heroBottom: 830,
@@ -4608,8 +4608,8 @@ function tcWrap(text, maxChars) {
 function tcK(px, kid) { return kid ? Math.round(px * 1.15) : px; }
 function tcKChars(maxChars, kid) { return kid ? Math.max(1, Math.floor(maxChars / 1.15)) : maxChars; }
 // Footer label computed from the live card count, not a hardcoded denominator (was "/ 43"
-// on every card — silently wrong the moment the set isn't exactly 43 entries; see Owen
-// ui-ux review). TIP_CARDS is declared later in this file but this is only ever called at
+// on every card — silently wrong the moment the set isn't exactly 43 entries).
+// TIP_CARDS is declared later in this file but this is only ever called at
 // render time, well after the whole script (incl. the TIP_CARDS const) has evaluated.
 function tcFooterLabel(id, opts) {
   return `${id} / ${TIP_CARDS.length}` + (opts && opts.kid ? ' · kid' : '');
@@ -4658,9 +4658,9 @@ function tcBodyWrap(text, x, y, opts) {
   ).join('');
 }
 // Callout band is a hard 2-line budget (140px band at locked 36px/tight type — see
-// tcCalloutBar). Guardrail (Owen ui-ux review, finding 6): a 3rd line silently clips under
-// the footer instead of erroring, which is how #14/#42 shipped broken. Throw instead so a
-// future card that overflows fails loudly at render time rather than shipping invisible.
+// tcCalloutBar). Guardrail: a 3rd line silently clips under the footer instead of
+// erroring, which is how #14/#42 shipped broken. Throw instead so a future card
+// that overflows fails loudly at render time rather than shipping invisible.
 function tcCallout(text, x, y, opts) {
   opts = opts || {};
   const maxChars = tcKChars(opts.maxChars || 40, opts.kid);
@@ -4713,8 +4713,8 @@ function tcGlyph(name, color, size) {
     case 'sand':
       return `<svg width="${z}" height="${z}" viewBox="0 0 24 24"><path d="M3 15 q3-3 6 0 t6 0 t6 0" stroke="${color}" stroke-width="1.8" fill="none"/><path d="M3 19 q3-3 6 0 t6 0 t6 0" stroke="${color}" stroke-width="1.8" fill="none"/></svg>`;
     case 'gauge':
-      // v2 (Owen ui-ux review, 2026-07-30): the original open-bottomed semicircle read as
-      // a croquet hoop. Closed base kills that read; three tick marks read as gauge marks.
+      // The original open-bottomed semicircle read as a croquet hoop. Closed base
+      // kills that read; three tick marks read as gauge marks.
       return `<svg width="${z}" height="${z}" viewBox="0 0 24 24">
         <path d="M4 16 A8 8 0 0 1 20 16" ${s}/>
         <line x1="4" y1="16" x2="20" y2="16" stroke="${color}" stroke-width="2"/>
@@ -4738,9 +4738,7 @@ function tcGlyph(name, color, size) {
    spec (card #6 profile address, card #9 face-on transition). The wren has no
    numeric recipe in the spec (only prose) — this is an original bespoke build
    satisfying every constraint in that prose (teardrop body, fanned tail angle,
-   closed-leaf wing, eye+catchlight, ball ahead of beak, brass palette), not a
-   byte-for-Byte reproduction of the s68 chat-transcript version (unavailable to
-   this build). Flagged in the coder handoff.
+   closed-leaf wing, eye+catchlight, ball ahead of beak, brass palette).
    ════════════════════════════════════════════════════════════════════ */
 
 /* ── WREN — adult (side profile, presenter) ──
@@ -4752,8 +4750,8 @@ function wrenAdult(cx, cy, scale, facing) {
   return `
   <g transform="translate(${cx},${cy}) scale(${f * s},${s})">
     <!-- tail: fan of 4 wedges, cocked ~52 deg up-and-back (back = +x, away from facing dir).
-         Negative rotation: SVG +y is down, so a positive angle here swept the tail DOWN,
-         not up-and-back as spec'd — fixed per Owen ui-ux review, finding 8. -->
+         Negative rotation: SVG +y is down, so a positive angle here would sweep the tail
+         DOWN instead of up-and-back as spec'd — must stay negative. -->
     <g transform="rotate(-52)">
       <path d="M0,0 L38,-5 L46,2 L36,7 Z" fill="${TC.brassMid}"/>
       <path d="M0,0 L40,4 L48,10 L36,14 Z" fill="${TC.brass}"/>
@@ -4787,7 +4785,7 @@ function wrenKid(cx, cy, scale) {
   const s = scale || 1;
   return `
   <g transform="translate(${cx},${cy}) scale(${s},${s})">
-    <!-- negative rotation: SVG +y is down, tail sweeps up-and-back, not down (Owen ui-ux review, finding 8) -->
+    <!-- negative rotation: SVG +y is down, tail sweeps up-and-back, not down -->
     <g transform="rotate(-56) translate(2,10)">
       <path d="M0,0 L30,-4 L37,3 L28,7 Z" fill="${TC.brassMid}"/>
       <path d="M0,0 L32,5 L38,11 L27,13 Z" fill="${TC.brass}"/>
@@ -4815,15 +4813,15 @@ function wrenKid(cx, cy, scale) {
 
 /* ── GOLFER FIGURE — profile / down-the-line address pose (card #6 recipe, U=62) ──
    Coordinates are the spec's literal pose recipe (section "Pose recipe — profile
-   address"), CORRECTED 2026-07-30 by Owen/ui-ux QA follow-up: the original arm
-   (elbow collinear with shoulder — a spec violation, "a limb drawn as one straight
-   segment") and the head/neck/pelvis attachment (no visible neck gap, waist gap too
-   tight) are fixed here. Every profile-pose card (#1, #6) inherits this correction.
+   address"), corrected here: the original arm (elbow collinear with shoulder — a
+   spec violation, "a limb drawn as one straight segment") and the head/neck/pelvis
+   attachment (no visible neck gap, waist gap too tight) are fixed. Every
+   profile-pose card (#1, #6) inherits this correction.
    RH facing left (target to the left), mirror wholesale for LH-specific use.
    opts.twoHandGrip: renders the hand as two circles (lead + trail) instead of one,
-   for #1 "Grip pressure" — same pose, a grip-detail variant, per Owen's spec note
-   that grip pressure is honestly checked at address so the fix is detail, not a
-   new skeleton. */
+   for #1 "Grip pressure" — same pose, a grip-detail variant, since grip pressure
+   is honestly checked at address, so the fix is a detail change, not a new
+   skeleton. */
 function golferProfileAddress(originX, originY, opts) {
   opts = opts || {};
   originX = originX || 0; originY = originY || 0;
@@ -4929,8 +4927,8 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
     </g>`;
   // head: fixed all frames (steady head)
   const head = `<circle cx="${ox}" cy="${oy-296}" r="22" fill="${TC.onInk}"/>`;
-  // arms: shoulder -> elbow -> hand joint chain, restored per Owen ui-ux review (this frame
-  // set previously shipped legs only — dropped when generalizing from the original #9
+  // arms: shoulder -> elbow -> hand joint chain (this frame set previously shipped legs
+  // only — restored here after being dropped when generalizing from the original #9
   // example, which had this chain). Shoulder tracks the chest's own rotation (same pivot,
   // computed by hand since the arm needs to land on the hand position below, which is
   // itself defined in the un-rotated origin frame, not inside the chest's <g>). Elbow is
@@ -4969,23 +4967,22 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   TIP CARDS — pose + re-templating follow-up (Owen / ui-ux, 2026-07-30)
+   TIP CARDS — pose + re-templating follow-up
    Implements "Pose + re-templating follow-up" in TIP-CARDS-VISUAL-SPEC.md:
    8 new DIAGRAM-POSITION poses (Bucket A) + 8 re-templated cards (Bucket B).
 
-   ARM-VOCABULARY RECONCILIATION (coordination flag from Owen, resolved here):
-   the face-on primitives below (faceOnArm/faceOnHands/faceOnLegs/faceOnPelvis/
-   faceOnChest/faceOnHead) use the IDENTICAL construction golferFaceOnFrame
-   already uses for the #9 sequence — stroke-width 11 round-capped limb
-   polylines, r22 head, ink-on-onInk shoulder/belt lines, same pelvis/chest
-   pivot points (0,-170)/(0,-228). New face-on poses are drawn with these same
-   primitives (parameterized instead of frame-hardcoded), so #9's frames and
-   every new face-on card share one arm style, not two. The one difference —
-   new-pose arms take literal final joint coordinates per shared decision 4
-   ("they do not inherit the [chest/pelvis] rotations") instead of #9's
-   computed-from-rotation shoulder point — is a simplification available
-   because the new spec gives explicit coordinates; it does not change the
-   rendered stroke width, cap style, or hand-circle treatment.
+   ARM-VOCABULARY RECONCILIATION: the face-on primitives below (faceOnArm/
+   faceOnHands/faceOnLegs/faceOnPelvis/faceOnChest/faceOnHead) use the
+   IDENTICAL construction golferFaceOnFrame already uses for the #9 sequence —
+   stroke-width 11 round-capped limb polylines, r22 head, ink-on-onInk
+   shoulder/belt lines, same pelvis/chest pivot points (0,-170)/(0,-228). New
+   face-on poses are drawn with these same primitives (parameterized instead
+   of frame-hardcoded), so #9's frames and every new face-on card share one
+   arm style, not two. The one difference — new-pose arms take literal final
+   joint coordinates ("they do not inherit the [chest/pelvis] rotations")
+   instead of #9's computed-from-rotation shoulder point — is a simplification
+   available because the new spec gives explicit coordinates; it does not
+   change the rendered stroke width, cap style, or hand-circle treatment.
    ════════════════════════════════════════════════════════════════════ */
 function faceOnLegs(ox, oy) {
   return `
@@ -5018,7 +5015,7 @@ function faceOnHead(ox, oy, dx, dy) {
   return `<circle cx="${ox+(dx||0)}" cy="${oy-296+(dy||0)}" r="22" fill="${TC.onInk}"/>`;
 }
 // arms: chain = [[x,y],[x,y],[x,y]] local-relative to (ox,oy); final coordinates, not
-// nested inside the chest/pelvis rotation groups (shared decision 4).
+// nested inside the chest/pelvis rotation groups.
 function faceOnArm(ox, oy, chain) {
   const pts = chain.map(([x,y]) => `${ox+x},${oy+y}`).join(' ');
   return `<polyline points="${pts}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
@@ -5172,10 +5169,9 @@ function golferFinishHero(ox, oy) {
    it's split out and drawn before the figure by the caller. */
 function tcBunkerAbs() {
   const cx = (380+700)/2, cy = (740+810)/2, rx = (700-380)/2, ry = (810-740)/2;
-  // Owen's spec flagged 45% as "calibrated on cream, verify on render" (new deviation 6).
-  // Render QA confirmed it: brass at 45% over kelly grass blends to a muddy olive, not
-  // sand — bumped to 85% so the patch reads as sand against the grass. Flagged in the
-  // coder handoff as a deviation from the spec's literal number.
+  // The spec's opacity was calibrated on cream and needed verification on the actual
+  // render: brass at 45% over kelly grass blends to a muddy olive, not sand — bumped
+  // to 85% so the patch reads as sand against the grass.
   return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${TC.brass}" fill-opacity="0.85" stroke="${TC.onInk}" stroke-width="3"/>`;
 }
 function golferBunkerHero(ox, oy) {
@@ -5249,8 +5245,8 @@ function tcClockArcAbs() {
   return `${arc}${ghost(640,676)}${ghost(700,532)}${ghost(600,368)}`;
 }
 
-/* ── Map-tile hero (Bucket B, shared decision 7) — one cream tile floating on the ink/
-   slate/grass scene, for topics that are top-down diagrams, not body positions. ── */
+/* ── Map-tile hero (Bucket B) — one cream tile floating on the ink/slate/grass scene,
+   for topics that are top-down diagrams, not body positions. ── */
 function tcMapTile() {
   return `<rect x="72" y="330" width="936" height="460" rx="20" fill="${TC.cream}"/>`;
 }
@@ -5328,9 +5324,9 @@ function mapStationTopdown() {
   return `${tcMapTile()}${stick1}${stick2}${mapFlagAt(905,415,40)}${ball}${blade}${feet}`;
 }
 
-/* ── Numbered brass leader terminals (shared decision 1) — replaces the old anonymous-
-   dot rendering. Brass dot on the feature + brass line + terminal brass circle w/ an ink
-   numeral, matching the numbered checkpoint row 1:1. ── */
+/* ── Numbered brass leader terminals — replaces the old anonymous-dot rendering. Brass
+   dot on the feature + brass line + terminal brass circle w/ an ink numeral, matching
+   the numbered checkpoint row 1:1. ── */
 function tcLeaders(leaders, lh) {
   return (leaders || []).map((l, i) => {
     const x = lh ? (TC_W - l.x) : l.x;
@@ -5343,8 +5339,8 @@ function tcLeaders(leaders, lh) {
     `;
   }).join('');
 }
-// Scene-scale wren, restored per shared decision 6 — adult wren + a ball ahead of the
-// beak, positioned clear of every Bucket A pose's geometry (all built within x<=680).
+// Scene-scale wren, restored — adult wren + a ball ahead of the beak, positioned clear
+// of every Bucket A pose's geometry (all built within x<=680).
 function tcSceneWren() {
   return `${wrenAdult(880, 742, 1, -1)}<circle cx="810" cy="758" r="9" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.5"/>`;
 }
@@ -5391,7 +5387,7 @@ function tcFooter(rightLabel) { return tcFooterLockup(rightLabel); }
 function renderSituationCard(entry, opts) {
   opts = opts || {};
   let rows = entry.useWhen || [];
-  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7
+  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows)
   const notRow = entry.notWhen;
   // Body band is 320px (830-1150). Section head + up to 3 checks + 1 "not when" row
   // must all fit — copy in tip-cards-data.js is kept to ~1 line/row (<=52 chars) so
@@ -5434,8 +5430,8 @@ function renderSituationCard(entry, opts) {
   body = sitClip + `<g clip-path="url(#tcSitClip)">${body}</g>`;
 
   // hero scene: ground wren facing the ball, club laid near the ball, small brass flagstick further back.
-  // Register-correct mascot (Owen ui-ux review, finding 8 area / #28 kid finding): this
-  // template previously hardcoded the adult wren even when rendering the kid register.
+  // Register-correct mascot: this template previously hardcoded the adult wren
+  // even when rendering the kid register.
   const scene = `
     ${opts.kid ? wrenKid(560, 700, 1) : wrenAdult(560, 700, 1, -1)}
     <circle cx="330" cy="742" r="12" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.5"/>
@@ -5474,7 +5470,7 @@ function renderCompareCard(entry, opts) {
   // Row copy in tip-cards-data.js is kept to one line per cell at this width.
   const colLabel = TC_SAFE, colLeft = TC_SAFE + 190, colRight = TC_SAFE + 540;
   let rows = entry.rows || [];
-  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7
+  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows)
   let body = '';
   let y = BAND.bodyTop + 58;
   rows.forEach(r => {
@@ -5500,8 +5496,8 @@ function renderCompareCard(entry, opts) {
 }
 
 /* ═══ 3. DIAGRAM-POSITION — one frozen figure (or map tile), numbered leader terminals,
-   3 numbered rows. Per-card poses/re-templating: Owen ui-ux "Pose + re-templating
-   follow-up" pass, 2026-07-30 — see entry.heroKind for the per-card hero builder. ═══ */
+   3 numbered rows. Per-card poses/re-templating — see entry.heroKind for the
+   per-card hero builder. ═══ */
 function renderDiagramPositionCard(entry, opts) {
   opts = opts || {};
   const lh = opts.hand === 'L';
@@ -5523,7 +5519,7 @@ function renderDiagramPositionCard(entry, opts) {
       heroAbs = tcTrainTracksAbs();
       // Rails + retargeted ball fully occupy this card's ground plane (the ball rail
       // literally passes through the standard wren spot) — no clean room for the scene
-      // wren here, same logic as the tile-hero exemption. Flagged in the coder handoff.
+      // wren here, same logic as the tile-hero exemption.
       sceneWren = '';
       break;
     case 'faceOnTakeaway':
@@ -5565,7 +5561,7 @@ function renderDiagramPositionCard(entry, opts) {
   }
 
   // Map-tile heroes are not mirrored for LH (course layouts aren't handed; #42 carries a
-  // textual LH note in its checkpoints instead — see shared decision 3/reuse instructions).
+  // textual LH note in its checkpoints instead).
   const figure = isTile ? heroAbs : `${heroAbs}${mirrorOpen}${heroLocal}${mirrorClose}`;
   const dots = tcLeaders(entry.leaders, isTile ? false : lh);
 
@@ -5608,10 +5604,10 @@ function renderDiagramSequenceCard(entry, opts) {
   for (let i = 0; i < n; i++) {
     const cx = TC_SAFE + frameW * i + frameW / 2;
     // Feet baseline fixed to the grass line (y=690) — was floating 136px high at y=554,
-    // inside the slate sky band (Owen ui-ux review, finding: sequence figures float above
-    // the ground). Figure mirrored in place, about its own frame center, for LH golfers,
+    // inside the slate sky band, so sequence figures looked like they floated above
+    // the ground. Figure mirrored in place, about its own frame center, for LH golfers,
     // so the Top->Impact reading order stays left to right regardless of hand (equivalent
-    // wrapper to renderDiagramPositionCard's mirror, per the coder handoff spec).
+    // wrapper to renderDiagramPositionCard's mirror).
     const mirror = lh ? ' scale(-1,1)' : '';
     scene += `<g transform="translate(${cx},696)${mirror}">${golferFaceOnFrame(i, 0, 0)}</g>`;
     if (i < n - 1) {
@@ -5631,7 +5627,7 @@ function renderDiagramSequenceCard(entry, opts) {
   // ceiling before step 4 gets pushed into the ink callout band and goes invisible
   // — that exact silent-overflow bug is why this is now clip-guarded below).
   let steps = entry.steps || [];
-  if (opts.kid) steps = steps.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7
+  if (opts.kid) steps = steps.slice(0, 3); // kid row cap (max 3 body rows)
   // maxC/rowLH: single source of truth, raw values passed to tcBodyWrap (not pre-scaled —
   // see renderSituationCard for why double-scaling maxChars/lineHeight desyncs the
   // y-advance from what actually renders).
@@ -5661,12 +5657,12 @@ function renderDiagramSequenceCard(entry, opts) {
 /* ═══ 5. CHART — small hero icon, table up to 6 rows, tabular-nums, optional big-number cell ═══ */
 function renderChartCard(entry, opts) {
   opts = opts || {};
-  // Placement fixed (Owen ui-ux review, 2026-07-30): translate(120,660) scale(3.4) rendered
-  // ~204px tall straddling the grass line (660->864) — "half-buried in turf." New placement
-  // sits wholly inside the ink field, clear of the slate band at y=520.
+  // Placement fixed: translate(120,660) scale(3.4) rendered ~204px tall straddling the
+  // grass line (660->864) — half-buried in turf. New placement sits wholly inside the
+  // ink field, clear of the slate band at y=520.
   const icon = `<g transform="translate(120,310) scale(2.8)">${tcGlyph('gauge', TC.onInk, 60)}</g>`;
   let rows = entry.rows || [];
-  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — Owen ui-ux review, finding 7 (kid #3 shipped 6)
+  if (opts.kid) rows = rows.slice(0, 3); // kid row cap (max 3 body rows) — kid #3 previously shipped 6 rows, over budget
   const colClub = TC_SAFE, colBar = TC_SAFE + 210, barW = 470, colPct = TC_SAFE + 750;
   // Body band is 320px. Up to 6 rows + a footnote must fit, so this is deliberately
   // denser than the 30px "body" scale: row numerals sit at 26px (footnote's size),
@@ -5731,12 +5727,12 @@ function renderFixCard(entry, opts) {
   opts = opts || {};
   const tileY = 340, tileH = 360, tileW = 420, gap = 40;
   const lX = TC_SAFE, rX = TC_W - TC_SAFE - tileW;
-  // Generic oxblood/ink trajectory-arc pair removed (Owen ui-ux review): it was the same
-  // two arcs reused on all 8 FIX cards, backwards on #14 (fault card's own text says "low,
-  // screaming shot" but the arc flew higher) and generic-to-wrong on the rest. Real
-  // per-card FIX art is a design-pass task, out of scope here — per Owen's own interim
-  // recommendation, an honest simpler tile (label + hairline only, no trajectory claim)
-  // beats a diagram that contradicts its own card. Two labeled cream tiles carry it now.
+  // Generic oxblood/ink trajectory-arc pair removed: it was the same two arcs reused on
+  // all 8 FIX cards, backwards on #14 (fault card's own text says "low, screaming shot"
+  // but the arc flew higher) and generic-to-wrong on the rest. Real per-card FIX art is
+  // a design-pass task, out of scope here — an honest simpler tile (label + hairline
+  // only, no trajectory claim) beats a diagram that contradicts its own card. Two
+  // labeled cream tiles carry it now.
   const tiles = `
     <rect x="${lX}" y="${tileY}" width="${tileW}" height="${tileH}" rx="20" fill="${TC.cream}"/>
     <rect x="${rX}" y="${tileY}" width="${tileW}" height="${tileH}" rx="20" fill="${TC.cream}"/>
@@ -5750,12 +5746,12 @@ function renderFixCard(entry, opts) {
   const rowH = (BAND.bodyBottom - BAND.bodyTop) / 3;
   let body = '';
   let fixClipDefs = '';
-  // Per-row clip (new, this fix pass): renderFixCard was the one template with no overflow
-  // guard at all. QA on this pass found several existing FIX cards (both stock content this
-  // coder didn't touch, e.g. #14/#15/#16/#17/#19, and #12/#13 kid rows after applying this
-  // pass's own content fixes + the new kid type scale) already ran past the "2 lines per
-  // row" budget the layout assumes, silently overlapping into the next kicker with no
-  // guardrail — worse than the other templates' clips, because text overlap reads as
+  // Per-row clip: renderFixCard was the one template with no overflow guard at all. QA
+  // found several existing FIX cards (both stock content, e.g. #14/#15/#16/#17/#19, and
+  // #12/#13 kid rows after applying content fixes + the new kid type scale) already ran
+  // past the "2 lines per row" budget the layout assumes, silently overlapping into the
+  // next kicker with no guardrail — worse than the other templates' clips, because text
+  // overlap reads as
   // broken, not just truncated. Trimmed the specific rows this pass touched/regressed;
   // clipping the rest here is a stopgap so any remaining or future long copy fails safe
   // (invisible overflow) instead of unreadable overlap, until a content-length pass or
@@ -5764,8 +5760,8 @@ function renderFixCard(entry, opts) {
     const ry = BAND.bodyTop + rowH * i;
     const clipId = `tcFixRowClip${i}`;
     fixClipDefs += `<clipPath id="${clipId}"><rect x="0" y="${ry}" width="${TC_W}" height="${rowH}"/></clipPath>`;
-    // Kicker bumped 18px -> 22px (Owen ui-ux review): 18 isn't in the locked type scale,
-    // nearest role is 22px/+3.5 for section heads.
+    // Kicker bumped 18px -> 22px: 18 isn't in the locked type scale, nearest role is
+    // 22px/+3.5 for section heads.
     let row = `<text x="${TC_SAFE}" y="${ry+26}" font-family="Archivo,sans-serif" font-weight="700" font-size="${tcK(22,opts.kid)}" letter-spacing="2.5" fill="${TC.ink70}">${kicker}</text>`;
     row += tcBodyWrap(entry.fix[i], TC_SAFE, ry + 52, { maxChars: 58, size: 26, lineHeight: 26, kid: opts.kid });
     body += `<g clip-path="url(#${clipId})">${row}</g>`;
@@ -5786,9 +5782,9 @@ function renderFixCard(entry, opts) {
 function renderTipCard(entry, opts) {
   opts = opts || {};
   const active = (opts.kid && entry.kid) ? Object.assign({}, entry, entry.kid) : entry;
-  // Deliberate schema extension (Owen ui-ux "Pose + re-templating follow-up", 2026-07-30,
-  // new deviation 4): a kid variant can override its own template, not just its copy — #36
-  // "Junior clubs" is COMPARE for adults but "Your bag, all 7 clubs" is a CHART for kids.
+  // Deliberate schema extension: a kid variant can override its own template, not just
+  // its copy — #36 "Junior clubs" is COMPARE for adults but "Your bag, all 7 clubs" is
+  // a CHART for kids.
   // active.format falls back to entry.format so every other card (kid or not) is unaffected.
   const fmt = active.format || entry.format;
   switch (fmt) {
@@ -5808,9 +5804,8 @@ function renderTipCard(entry, opts) {
    pga-coaching-reference/ file+section, noted in each entry's `source` field.
    PHASE 1 (this pass): the 6 worked-example topics only (#20, #25, #6, #9, #22, #12),
    fully populated including kid variants where the kid-applicability audit
-   (TIP-CARDS-CONTENT-PLAN.md, 2026-07-30) calls for one. The remaining 37 adult
-   topics + ~14 more kid variants are NOT included yet — see the coder handoff
-   for the explicit list of what's done vs. pending.
+   (TIP-CARDS-CONTENT-PLAN.md) calls for one. The remaining 37 adult topics + ~14 more
+   kid variants are NOT included yet.
 
    SCHEMA (fields used across all formats; format-specific fields noted per template):
    {
@@ -5835,8 +5830,7 @@ function renderTipCard(entry, opts) {
    }
    ════════════════════════════════════════════════════════════════════ */
 
-// TC_STD_LEADERS removed 2026-07-30 (Owen ui-ux "Pose + re-templating follow-up",
-// shared decision 2: "TC_STD_LEADERS dies... it was the root defect"). Every
+// TC_STD_LEADERS removed — a single shared leader-line array was the root defect. Every
 // DIAGRAM-POSITION entry below now carries its own `leaders` array matched to its own
 // pose/hero geometry.
 
@@ -5884,9 +5878,9 @@ const TIP_CARDS = [
     callout: 'Don’t mix the two: splash it greenside, pick it clean in the fairway.',
     footerRight: '25 / 43',
     source: '05-short-game.md: "3. Bunker Play" (Greenside Bunker + Fairway Bunker subsections)',
-    // Kid variant nulled (2026-07-30 coder fix pass): duplicated #24 kid's headline
-    // word-for-word while silently changing topic (greenside vs. fairway bunker) — #24's
-    // kid card already covers "it's the shot the sand wedge is named for" for bunkers.
+    // Kid variant nulled: duplicated #24 kid's headline word-for-word while silently
+    // changing topic (greenside vs. fairway bunker) — #24's kid card already covers
+    // "it's the shot the sand wedge is named for" for bunkers.
     kid: null
   },
 
@@ -5896,8 +5890,8 @@ const TIP_CARDS = [
     format: 'DIAGRAM-POSITION',
     eyebrow: 'Setup & fundamentals',
     headline: 'The athletic ready position',
-    // Corrected 2026-07-30 (Owen ui-ux pose follow-up) to match the corrected #6 baseline
-    // figure's real joint coordinates (was measured off the pre-correction straight-arm pose).
+    // Corrected to match the corrected #6 baseline figure's real joint coordinates
+    // (was measured off the pre-correction straight-arm pose).
     leaders: [
       { x: 596, y: 536, lx: 820, ly: 470 },
       { x: 548, y: 652, lx: 250, ly: 660 },
@@ -6020,9 +6014,9 @@ const TIP_CARDS = [
     format: 'DIAGRAM-POSITION',
     eyebrow: 'Setup & fundamentals',
     headline: 'Grip pressure: 5 out of 10',
-    // Reuses the corrected #6 profile pose deliberately (Owen ui-ux pose follow-up,
-    // 2026-07-30): grip pressure is genuinely checked at address, so the fix is a
-    // two-hand grip detail (heroKind 'profileGrip'), not a new skeleton.
+    // Reuses the corrected #6 profile pose deliberately: grip pressure is genuinely
+    // checked at address, so the fix is a two-hand grip detail (heroKind 'profileGrip'),
+    // not a new skeleton.
     heroKind: 'profileGrip',
     leaders: [
       { x: 507, y: 577, lx: 250, ly: 500 },
@@ -6151,7 +6145,7 @@ const TIP_CARDS = [
       { club: 'Short irons (9, 8)', value: 'Hip- to shoulder-width' },
       // Mid irons (7-5) + Long irons/hybrids/woods merged into one row (both were
       // "Shoulder-width" already) to make room for the 9/8-iron row above while staying
-      // at the template's 6-row cap — coder fix pass, 2026-07-30.
+      // at the template's 6-row cap.
       { club: 'Mid-to-long irons, hybrids, woods', value: 'Shoulder-width' },
       { club: 'Driver', value: 'Shoulder-width or wider' }
     ],
@@ -6610,9 +6604,9 @@ const TIP_CARDS = [
   },
 
   /* ── #28 · SITUATION · source: 05-short-game.md "Hybrid Chip, Not the Same as..." ──
-     Kid variant is the merged replacement recommended in the 2026-07-30 kid audit: #20's
-     kid card ("Chip It Low With Your 9-Iron") folded into #28 so the kid track doesn't
-     contradict #24 by telling a kid to "ditch" one of their seven clubs. */
+     Kid variant is the merged replacement recommended in the kid audit: #20's kid card
+     ("Chip It Low With Your 9-Iron") folded into #28 so the kid track doesn't contradict
+     #24 by telling a kid to "ditch" one of their seven clubs. */
   {
     id: 28,
     format: 'SITUATION',
@@ -6622,10 +6616,9 @@ const TIP_CARDS = [
       'Clean lie, any distance — no lie issue to solve',
       'You want to control the carry before the roll'
     ],
-    // Third useWhen row ("Wind is a factor — a low runner holds its line") cut, 2026-07-30
-    // coder fix pass: not sourced anywhere in 05-short-game.md (checked the whole file) —
-    // Coach Jack flagged it as unsourced and this either finds the real source or cuts it;
-    // no wind-and-bump-and-run guidance exists in the reference doc, so cut.
+    // Third useWhen row ("Wind is a factor — a low runner holds its line") cut: not
+    // sourced anywhere in 05-short-game.md (checked the whole file) — no wind-and-
+    // bump-and-run guidance exists in the reference doc, so cut.
     notWhen: 'Grass too thick to putt through — use the hybrid stroke instead',
     callout: 'A real chip motion, not a putting stroke. 7-iron runs most, 9-iron flies more.',
     footerRight: '28 / 43',
@@ -6781,7 +6774,7 @@ const TIP_CARDS = [
     callout: 'Match what’s happening to the fix, then go try it on the next shot.',
     footerRight: '34 / 43',
     source: '06-course-management.md: "On-Course Fault → Fix Cheat Sheet"',
-    kid: null // condensed adult diagnostic table, not a kid concept — coder judgment call
+    kid: null // condensed adult diagnostic table, not a kid concept
   },
 
   /* ── #35 · CHART (value rows) · source: 07-equipment.md "Shaft Flex Quick Reference" ── */
@@ -6805,8 +6798,8 @@ const TIP_CARDS = [
   },
 
   /* ── #36 · COMPARE (checkx) · source: 07-equipment.md "Junior" + "The Standard Kid Set" ──
-     Re-templated (Owen ui-ux "Pose + re-templating follow-up", 2026-07-30): this is an
-     either/or equipment choice, not a body position — was mis-templated as DIAGRAM-POSITION.
+     Re-templated: this is an either/or equipment choice, not a body position — was
+     mis-templated as DIAGRAM-POSITION.
      Kid variant becomes CHART via the active.format override (renderTipCard), new deviation
      4 — "Your bag, all 7 clubs" is literally a reference table. */
   {
@@ -6867,10 +6860,9 @@ const TIP_CARDS = [
   },
 
   /* ── #38 · CHART (value rows) · source: 07-equipment.md "Grip Size Quick Reference" ──
-     Re-templated (Owen ui-ux "Pose + re-templating follow-up", 2026-07-30): the source is
-     a quick-reference table — a two-tile COMPARE would be structurally wrong here since
-     both extremes are wrong and the answer is the middle. Was mis-templated as
-     DIAGRAM-POSITION. */
+     Re-templated: the source is a quick-reference table — a two-tile COMPARE would be
+     structurally wrong here since both extremes are wrong and the answer is the middle.
+     Was mis-templated as DIAGRAM-POSITION. */
   {
     id: 38,
     format: 'CHART',
@@ -6987,10 +6979,9 @@ const TIP_CARDS = [
       { x: 330, y: 684, lx: 250, ly: 750 },
       { x: 515, y: 655, lx: 620, ly: 730 }
     ],
-    // LH note (Owen ui-ux spec, 2026-07-30, "keep the LH note in the card source"): the
-    // top-down station diagram is NOT mirrored for LH golfers (course/ground layouts
-    // aren't handed, per shared decision 3 — renderDiagramPositionCard skips the mirror
-    // wrap for tile-* heroKinds). For a LH golfer the target stick still points at the
+    // LH note: the top-down station diagram is NOT mirrored for LH golfers (course/
+    // ground layouts aren't handed — renderDiagramPositionCard skips the mirror wrap
+    // for tile-* heroKinds). For a LH golfer the target stick still points at the
     // target; the toe stick runs parallel on their right instead of their left. Not put
     // in a 4th checkpoint row — the 3 checkpoints already map 1:1 to the 3 leader dots
     // (target stick / toe stick / "check yourself"), and the render engine caps
@@ -7019,7 +7010,7 @@ const TIP_CARDS = [
 
   // ── #43 · SITUATION · source: 05-short-game.md "Hybrid Bump-and-Run (30–50 Yards, Light
   // Rough)" — previously held back as too thin (see removed placeholder comment); that
-  // subsection was written out in full 2026-08-10 and this card is built from it. Headline
+  // subsection was later written out in full and this card is built from it. Headline
   // deliberately mirrors #20's "Putt with your hybrid" ("Chip it with your hybrid") so the
   // two cards read as a contrasting pair — same club, two different strokes, two different
   // lies/distances — rather than looking like duplicates.
@@ -7046,17 +7037,16 @@ const TIP_CARDS = [
 
 
 /* ── PWA integration: Home rotator + Tips library page ──
-   Both pull from the same TIP_CARDS data source (per Jeremy's decision this
-   session: data-driven, not one-off images, so this can be personalized later —
-   e.g. swapping in a user's real skill level or miss pattern). Kid vs. adult
-   register is selected today from profile.isKid; that is the seam a future
-   pass would extend (skill level, recent miss pattern, etc.) without touching
-   the templates. */
+   Both pull from the same TIP_CARDS data source: data-driven, not one-off images, so
+   this can be personalized later — e.g. swapping in a user's real skill level or miss
+   pattern. Kid vs. adult register is selected today from profile.isKid; that is the
+   seam a future pass would extend (skill level, recent miss pattern, etc.) without
+   touching the templates. */
 // Normalizes the active profile's hand to the 'L'|'R' the render functions expect, using
 // the same profile.hand==='l'||'left' pattern already used throughout the app (renderRange,
 // renderStrategy, renderShortGame, the caddie system prompts, etc.) — real hook, not a
-// dead parameter: LH family members (Son/daughter per Jeremy's profile notes) now actually
-// see mirrored DIAGRAM figures instead of a hardcoded RH pose.
+// dead parameter: LH family members now actually see mirrored DIAGRAM figures instead
+// of a hardcoded RH pose.
 function tcActiveHand() {
   return (profile && (profile.hand === 'l' || profile.hand === 'left')) ? 'L' : 'R';
 }
