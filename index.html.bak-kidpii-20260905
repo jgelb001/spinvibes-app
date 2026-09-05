@@ -454,55 +454,6 @@ const FREQ  = { rare:'2× / month', weekly:'Once a week', multi:'3× a week', da
 // Member goal options (fun|learn|compete|return) differ from the main user's
 // (break100/90/…), so map them onto the app's render keys before use.
 function slug(s){ return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'member'; }
-
-/* ── Opaque member keys · see KID-PII-SCOPE.md ──────────────────────────────
-   A member's CLOUD key is an opaque token. Names never leave the device.
-   Dual-mode on purpose: prefer m.key when the profile carries one (post
-   migration-kid-pii.sql), else fall back to slug(name) so this ships safely
-   BEFORE the migration runs. Do not "simplify" the fallback away until
-   stage 4 of that migration has verified clean. */
-function memberKeyOf(m){ return (m && m.key) ? m.key : slug(m && m.name); }
-function newMemberKey(){
-  let r;
-  try { r = Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
-  catch(e){ r = (Math.random().toString(16)+'000000000000').slice(2,14); }
-  return 'm_' + r;
-}
-function NAMES_KEY(){ return 'sv-names-' + userId; }
-function localNames(){ try { return JSON.parse(localStorage.getItem(NAMES_KEY()) || '{}'); } catch(e){ return {}; } }
-function saveLocalNames(map){ try { localStorage.setItem(NAMES_KEY(), JSON.stringify(map)); } catch(e){} }
-/* Names the cloud no longer stores are rehydrated from this device; a member
-   first seen on a new device falls back to the initial the cloud does keep. */
-function hydrateMemberNames(mem){
-  const names = localNames();
-  (mem||[]).forEach(m => {
-    const k = memberKeyOf(m);
-    if (m.name) names[k] = m.name;
-    else m.name = names[k] || (m.initial ? m.initial + '.' : 'Player');
-  });
-  saveLocalNames(names);
-  return mem;
-}
-/* The ONLY shape allowed to reach Supabase: no name, and no exact age for a minor. */
-function sanitizeMembersForCloud(mem){
-  return (mem||[]).map(m => {
-    const age = parseInt(m.age) || 0;
-    const isKid = age > 0 && age < 18;
-    const out = {
-      key:       memberKeyOf(m),
-      initial:   (String(m.name||'?').trim().charAt(0) || '?').toUpperCase(),
-      isKid:     isKid,
-      hand:      m.hand,
-      goal:      m.goal,
-      skill:     m.skill || null,
-      distances: m.distances || null,
-      miss:      m.miss || null
-    };
-    if (isKid) out.band = age <= 8 ? 'k68' : (age <= 12 ? 'k912' : 'teen');
-    else if (age) out.age = age;
-    return out;
-  });
-}
 function mapMemberGoal(g){ return ({ learn:'beginner', compete:'break90' })[g] || g || 'fun'; } // keep fun/return as-is
 function deriveMemberSkill(age, rawGoal){
   if (rawGoal === 'compete') return (age < 13) ? 'some' : 'mid';
@@ -536,9 +487,9 @@ function memberToProfile(m){
     miss: m.miss || '',
     weaknesses: [],
     freq: 'weekly',
-    _key: memberKeyOf(m),
+    _key: slug(m.name),
     // canonical shape for the editor + persistence (now carries the full editable set)
-    _raw: { key: memberKeyOf(m), name: m.name, age, hand: (hand==='l'?'left':'right'), goal: rawGoal,
+    _raw: { name: m.name, age, hand: (hand==='l'?'left':'right'), goal: rawGoal,
             skill: m.skill||null, distances: m.distances||null, bag: m.bag||null, miss: m.miss||null },
   };
 }
@@ -551,7 +502,7 @@ function buildFamily(){
     const fmParam = new URLSearchParams(location.search).get('fm');
     if (fmParam) mem = parseFM(fmParam);
   }
-  mainProfile.members = hydrateMemberNames(mem);   // canonical raw members (names refilled from this device)
+  mainProfile.members = mem;            // canonical source-of-truth list of raw members
   family = mem.map(memberToProfile);
   // Guarantee unique _key per member. slug(name) alone collides for same/similar
   // names ("Sam" & "Sam", "JJ" & "J.J."), which would merge their colors AND their
@@ -1022,7 +973,7 @@ function openSettings() {
   // The editor now binds to whichever profile is ACTIVE (the pill up top).
   // main → edits the beta user + the family roster; a member → edits THAT kid.
   const editMain = (typeof activeKey === 'undefined' || activeKey === 'main');
-  const rawMem = editMain ? null : ((mainProfile.members||[]).find(mm=>memberKeyOf(mm)===activeKey) || null);
+  const rawMem = editMain ? null : ((mainProfile.members||[]).find(mm=>slug(mm.name)===activeKey) || null);
   const p = editMain ? (mainProfile || profile || {}) : (family.find(f=>f._key===activeKey) || {});
   const handVal = (p.hand==='l'||p.hand==='left') ? 'l' : 'r';
   const dists = normalizeDistances(p.distances);
@@ -1163,7 +1114,7 @@ function renderFamilyRows(){
 function memberRowHtml(m, i){
   const hand = (m.hand==='l'||m.hand==='left') ? 'left' : 'right';
   const opt=(v,l,cur)=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`;
-  return `<div class="fam-row" data-i="${i}" data-key="${esc(m.key||'')}" style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;">
+  return `<div class="fam-row" data-i="${i}" style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px;">
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <input class="mi fm-name" type="text" maxlength="20" placeholder="Name" value="${esc(m.name||'')}" style="flex:1;margin-bottom:0;">
       <input class="mi fm-age" type="number" min="3" max="99" placeholder="Age" value="${m.age||''}" style="width:74px;margin-bottom:0;text-align:center;">
@@ -1178,7 +1129,6 @@ function memberRowHtml(m, i){
 // Read the editor rows back into a clean member array.
 function collectMemberRows(){
   return Array.from(document.querySelectorAll('#set-family .fam-row')).map(row=>({
-    key:  row.getAttribute('data-key') || newMemberKey(),
     name: row.querySelector('.fm-name').value.trim(),
     age:  parseInt(row.querySelector('.fm-age').value)||0,
     hand: row.querySelector('.fm-hand').value,
@@ -1231,7 +1181,6 @@ async function saveSettings() {
     const base = mainProfile || profile;
     const finalName = name || base.name;
     const members = collectMemberRows();
-    hydrateMemberNames(members);   // names stay here, never in the PATCH below
     mainProfile = Object.assign({}, base, { name: finalName, hand, skill, goal, distances, members, _key:'main' });
     family = members.map(memberToProfile);
     profile = mainProfile; // active is main here
@@ -1241,7 +1190,7 @@ async function saveSettings() {
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
           method: 'PATCH', headers: { ...SB_HDR, Prefer: 'return=minimal' },
-          body: JSON.stringify({ name: finalName, hand, skill, goal, distances: Object.keys(distances).length ? distances : null, members: members.length ? sanitizeMembersForCloud(members) : null }),
+          body: JSON.stringify({ name: finalName, hand, skill, goal, distances: Object.keys(distances).length ? distances : null, members: members.length ? members : null }),
         });
         synced = res.ok;
       } catch(e) {}
@@ -1249,7 +1198,7 @@ async function saveSettings() {
   } else {
     // ── edit ONE family member (the active pill) ──
     const members = (mainProfile.members || []).slice();
-    const idx = members.findIndex(mm => memberKeyOf(mm) === activeKey);
+    const idx = members.findIndex(mm => slug(mm.name) === activeKey);
     if (idx >= 0) {
       const prev = members[idx];
       const ageEl = document.getElementById('set-age');
@@ -1263,17 +1212,16 @@ async function saveSettings() {
         distances: Object.keys(distances).length ? distances : null,
         miss: miss || null,
       };
-      hydrateMemberNames(members);   // names stay here, never in the PATCH below
       mainProfile.members = members;
       family = members.map(memberToProfile);
-      activeKey = memberKeyOf(members[idx]);                  // opaque key: stable across renames
+      activeKey = slug(members[idx].name);                    // key may shift if renamed
       profile = family.find(f => f._key === activeKey) || mainProfile;
       try { localStorage.setItem('sv-profile-'+userId, JSON.stringify(mainProfile)); } catch(e) {}
       if (userId && !String(userId).startsWith('preview_')) {
         try {
           const res = await fetch(`${SUPABASE_URL}/rest/v1/guide_users?id=eq.${userId}`, {
             method: 'PATCH', headers: { ...SB_HDR, Prefer: 'return=minimal' },
-            body: JSON.stringify({ members: sanitizeMembersForCloud(members) }),
+            body: JSON.stringify({ members }),
           });
           synced = res.ok;
         } catch(e) {}
