@@ -3516,7 +3516,9 @@ async function saveFamilyRound(btn){
       total, par, holes:_famHoles.length, tee:_famRound.tee||null,
       round_type:_famRound.round_type||'regulation_18', rating:_famRound.rating||null, slope:_famRound.slope||null, family:true, game_mode:_famRound.game_mode||'fun',
       holeData:_famHoles.map(h=>({hole:h.hole,par:h.par,score:h.scores[pl.key]||0,yds:h.yds,photo:h.photos?.[0]||null})),
-      notes:'Family round'+(_famMode!=='fun'?' ('+((FAM_MODES.find(m=>m.key===_famMode)||{}).title||'')+')':'')+' · '+_famPlayers.map(x=>x.name).join(', ') };
+      /* Player NAMES must never reach the cloud (KID-PII-SCOPE.md) — this record
+         is synced to family_rounds.round. Count, not a roster of first names. */
+      notes:'Family round'+(_famMode!=='fun'?' ('+((FAM_MODES.find(m=>m.key===_famMode)||{}).title||'')+')':'')+' · '+_famPlayers.length+' players' };
     // Save locally under each player's per-profile round key
     activeKey=pl.key;
     let arr=[];
