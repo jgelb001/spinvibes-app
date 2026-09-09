@@ -7163,12 +7163,16 @@ const TIP_CARDS = [
 function tcActiveHand() {
   return (profile && (profile.hand === 'l' || profile.hand === 'left')) ? 'L' : 'R';
 }
+// Deterministic daily rotation — no randomness, matches the house rule used
+// elsewhere in this app (rewards, markers) even though this isn't a reward.
+// Single source of truth so the home preview and the tips page can never show
+// two different cards on the same day.
+function tcTodayIndex() {
+  return Math.floor(Date.now() / 86400000) % TIP_CARDS.length;
+}
 function tipsHomeInsertHtml() {
   if (typeof TIP_CARDS === 'undefined' || !TIP_CARDS.length) return '';
-  // Deterministic daily rotation — no randomness, matches the house rule used
-  // elsewhere in this app (rewards, markers) even though this isn't a reward.
-  const dayIdx = Math.floor(Date.now() / 86400000) % TIP_CARDS.length;
-  const entry = TIP_CARDS[dayIdx];
+  const entry = TIP_CARDS[tcTodayIndex()];
   const isKid = !!(profile && profile.isKid);
   let svg;
   try { svg = renderTipCard(entry, { kid: isKid, hand: tcActiveHand() }); } catch (e) { console.warn('tip card render failed', e); return ''; }
@@ -7177,22 +7181,25 @@ function tipsHomeInsertHtml() {
     <div class="tip-card-wrap" onclick="goPage('tips')">${svg}</div>
   `;
 }
+// 2026-09-09, Jeremy direct: "I only want to be able to see one card a day" —
+// this used to map every TIP_CARDS entry into a scrollable library, so opening
+// the card from Home actually showed all 43. Now it shows the SAME single
+// daily card as the Home preview (tcTodayIndex()), nothing else reachable from
+// here — different card each day, wrapping back to the start after the last.
 function renderTips() {
   const el = document.getElementById('pg-tips');
   if (!el) return;
   if (typeof TIP_CARDS === 'undefined' || !TIP_CARDS.length) { el.innerHTML = ''; return; }
   const isKid = !!(profile && profile.isKid);
   const hand = tcActiveHand();
-  const cards = TIP_CARDS.map(entry => {
-    let svg;
-    try { svg = renderTipCard(entry, { kid: isKid, hand }); } catch (e) { console.warn('tip card render failed', entry && entry.id, e); return ''; }
-    return `<div class="tip-card-wrap">${svg}</div>`;
-  }).join('');
+  const entry = TIP_CARDS[tcTodayIndex()];
+  let svg = '';
+  try { svg = renderTipCard(entry, { kid: isKid, hand }); } catch (e) { console.warn('tip card render failed', entry && entry.id, e); }
   el.innerHTML = `
     <button class="back-chip" onclick="goPage('home')"><i class="ti ti-arrow-left"></i> Home</button>
     <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Tips</div>
-    <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${isKid ? 'Bite-size lessons, in your voice.' : 'Every tip card, pulled from the same coaching data as your plan.'}</div>
-    <div class="tip-card-lib">${cards}</div>
+    <div style="font-size:0.73rem;color:var(--muted);margin-bottom:14px;">${isKid ? "Today's bite-size lesson, in your voice." : "Today's tip, pulled from the same coaching data as your plan."}</div>
+    <div class="tip-card-lib"><div class="tip-card-wrap">${svg}</div></div>
   `;
 }
 

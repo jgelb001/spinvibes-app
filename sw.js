@@ -3,7 +3,7 @@
 // fetch fresh index.html on every load (the old code honored GitHub Pages'
 // max-age=600 and could serve a stale disk copy for ~10 min). The token still
 // guarantees a clean cache swap when this file's bytes change.
-const CACHE = 'spinvibes-app-v24'; // 2026-09-09: tip-card diagram redesign — wren medallion (new wren-tip-pro-swing.png asset), rounded/curved figure anatomy, card 9 rotation degree readout, DIAGRAM-POSITION overflow clip-guard
+const CACHE = 'spinvibes-app-v25'; // 2026-09-09: Tips page now shows only today's card (tcTodayIndex, deterministic daily rotation) instead of all 43 — was letting anyone browse the full library from the daily card tap
 const SHELL = ['/', '/index.html', '/confirm.html', '/manifest.json'];
 
 // Delete every old spinvibes-app-* cache. Runs on activate AND lazily once per SW
