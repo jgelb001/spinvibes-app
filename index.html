@@ -4795,6 +4795,23 @@ function tcGlyph(name, color, size) {
    closed-leaf wing, eye+catchlight, ball ahead of beak, brass palette).
    ════════════════════════════════════════════════════════════════════ */
 
+/* ── WREN MEDALLION (2026-09-09) — the locked Recraft "Tip Pro" character art
+   (brand-assets/wren-mascot-recraft/, session 71) as a small framed portrait in
+   the banner corner, replacing the flat coded glyph below. Jeremy's direct call:
+   the coded glyph "looks bad" — this asset already existed, already recolored
+   pixel-exact to brand tokens (background is literally --wh-brass), zero
+   additional generation cost. `wren-tip-pro-swing.png` ships alongside this file
+   (root-relative, same pattern as `_svLogo`'s `/spinvibes_logo.png` load) —
+   referenced directly as an SVG <image> href, no preload needed. ── */
+function wrenMedallion(cx, cy, r) {
+  const clipId = `wrenMedClip${Math.round(cx)}_${Math.round(cy)}_${r}`;
+  return `
+    <clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>
+    <image href="/wren-tip-pro-swing.png" x="${cx-r}" y="${cy-r}" width="${r*2}" height="${r*2}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>
+    <circle cx="${cx}" cy="${cy}" r="${r-1.5}" fill="none" stroke="${TC.brass}" stroke-width="3"/>
+  `;
+}
+
 /* ── WREN — adult (side profile, presenter) ──
    facing: 1 = faces +x (right), -1 = faces -x (left). scale: 1 = ~180px hero, ~0.43 = ~78px banner. */
 function wrenAdult(cx, cy, scale, facing) {
@@ -4946,48 +4963,34 @@ function golferProfileAddress(originX, originY, opts) {
    frame to its slot. Rotation grammar: chest & pelvis rotate about their own pivots;
    pelvis also gets a small target-ward (−x) "bump" translate, capped at 8px. */
 const TC9_FRAMES = [
-  { label: 'Top',         chest: -16, pelvis: 2,  bump: 0,  hands: [38, -291],  note: 'lag set, hands high trail-side' },
-  { label: 'Hips fire',   chest: -14, pelvis: 12, bump: -6, hands: [30, -286],  note: 'belt line leads the arms' },
-  { label: 'Arms drop',   chest: -6,  pelvis: 14, bump: -8, hands: [18, -186],  note: 'lag still held, club stays up' },
-  { label: 'Club arrives',chest: 4,   pelvis: 16, bump: -8, hands: [-38, -160], note: 'hands ahead of the clubhead' }
+  { label: 'Top',         chest: -34, pelvis: -12, bump: 4,   hands: [46, -320], note: 'exaggerated 2026-09-09 for legibility, confirmed by Jeremy' },
+  { label: 'Hips fire',   chest: -30, pelvis: 26,  bump: -10, hands: [42, -300], note: 'exaggerated 2026-09-09 for legibility, confirmed by Jeremy' },
+  { label: 'Arms drop',   chest: -10, pelvis: 32,  bump: -14, hands: [8, -150],  note: 'exaggerated 2026-09-09 for legibility, confirmed by Jeremy' },
+  { label: 'Club arrives',chest: 16,  pelvis: 38,  bump: -14, hands: [-55, -70], note: 'exaggerated 2026-09-09 for legibility, confirmed by Jeremy' }
 ];
 function golferFaceOnFrame(frameIndex, originX, originY) {
   const f = TC9_FRAMES[frameIndex];
   const ox = originX || 0, oy = originY || 0;
-  const T = (x, y) => `${x + ox},${y + oy}`;
   const [hx, hy] = f.hands;
-  // ball fixed target-side every frame
-  const ball = `<circle cx="${ox - 30}" cy="${oy - 8}" r="8" fill="${TC.onInk}" stroke="${TC.ink}" stroke-width="1.2"/>`;
-  // legs: symmetric two-leg figure (unaffected by chest/pelvis rotation — grounded)
-  const legs = `
-    <polyline points="${T(-20,-150)} ${T(-26,-86)} ${T(-24,-12)}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
-    <polyline points="${T(20,-150)} ${T(26,-86)} ${T(24,-12)}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
-    <line x1="${ox-42}" y1="${oy-6}" x2="${ox-14}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>
-    <line x1="${ox+14}" y1="${oy-6}" x2="${ox+42}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>
-  `;
-  // pelvis block: rect(-32,-190,64,42,rx16), rotate about (0,-170) local (=ox,oy-170), plus bump translate
-  const pelvisPivotY = oy - 170;
-  const pelvis = `
-    <g transform="translate(${f.bump},0) rotate(${f.pelvis} ${ox} ${pelvisPivotY})">
-      <rect x="${ox-32}" y="${oy-190}" width="64" height="42" rx="16" fill="${TC.onInk}"/>
-      <line x1="${ox-30}" y1="${oy-190}" x2="${ox+30}" y2="${oy-190}" stroke="${TC.ink}" stroke-width="4"/>
-    </g>`;
-  // chest trapezoid: top +-40 at y -266..-256, bottom +-30 at y -206..-196, rotate about (0,-228)
+  // 2026-09-09: rebuilt on the SAME shared faceOn* primitives every other
+  // DIAGRAM-POSITION card uses (previously duplicated its own copies, which is
+  // exactly how #9 and the position cards drifted into two styles before) —
+  // one body vocabulary, one place to fix it.
+  const ball = faceOnBall(ox, oy, -30, -8, 8);
+  const legs = faceOnLegs(ox, oy)
+    + `<line x1="${ox-42}" y1="${oy-6}" x2="${ox-14}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>
+       <line x1="${ox+14}" y1="${oy-6}" x2="${ox+42}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>`;
+  const pelvis = faceOnPelvis(ox, oy, f.pelvis, f.bump);
+  const chest = faceOnChest(ox, oy, f.chest);
+  const neck = faceOnNeck(ox, oy);
+  const head = faceOnHead(ox, oy);
+  // arms: shoulder -> elbow -> hand joint chain. Shoulder tracks the chest's own
+  // rotation (same pivot as faceOnChest, computed by hand since the arm needs to
+  // land on the hand position below, itself defined in the un-rotated origin frame,
+  // not inside the chest's <g>). Elbow is the bend point ~55% of the way to the
+  // hand, offset perpendicular for a natural flex — same construction
+  // golferProfileAddress uses for card #6.
   const chestPivotY = oy - 228;
-  const chest = `
-    <g transform="rotate(${f.chest} ${ox} ${chestPivotY})">
-      <path d="M ${ox-40},${oy-266} L ${ox+40},${oy-256} L ${ox+30},${oy-196} L ${ox-30},${oy-206} Z" fill="${TC.onInk}"/>
-      <line x1="${ox-38}" y1="${oy-262}" x2="${ox+38}" y2="${oy-253}" stroke="${TC.ink}" stroke-width="4"/>
-    </g>`;
-  // head: fixed all frames (steady head)
-  const head = `<circle cx="${ox}" cy="${oy-296}" r="22" fill="${TC.onInk}"/>`;
-  // arms: shoulder -> elbow -> hand joint chain (this frame set previously shipped legs
-  // only — restored here after being dropped when generalizing from the original #9
-  // example, which had this chain). Shoulder tracks the chest's own rotation (same pivot,
-  // computed by hand since the arm needs to land on the hand position below, which is
-  // itself defined in the un-rotated origin frame, not inside the chest's <g>). Elbow is
-  // the bend point ~55% of the way to the hand, offset perpendicular for a natural flex —
-  // same shoulder/elbow/hand construction golferProfileAddress uses for card #6.
   const chestRad = (f.chest * Math.PI) / 180;
   const shoulderPreX = 0, shoulderPreY = (oy - 260) - chestPivotY;
   const shoulderX = ox + shoulderPreX * Math.cos(chestRad) - shoulderPreY * Math.sin(chestRad);
@@ -4997,27 +5000,35 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
   const armLen = Math.sqrt(armDx * armDx + armDy * armDy) || 1;
   const elbowX = shoulderX + armDx * 0.55 + (-armDy / armLen) * 18;
   const elbowY = shoulderY + armDy * 0.55 + (armDx / armLen) * 18;
-  const arms = `<polyline points="${shoulderX.toFixed(1)},${shoulderY.toFixed(1)} ${elbowX.toFixed(1)},${elbowY.toFixed(1)} ${handX},${handY}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
-  // hands + shaft, drawn relative to frame's hand position; frame 1's shaft draws BEHIND head
-  const handCircle = `<circle cx="${ox+hx}" cy="${oy+hy}" r="10" fill="${TC.onInk}"/>`;
+  const arms = faceOnArm(0, 0, [[shoulderX, shoulderY], [elbowX, elbowY], [handX, handY]]);
+  const handCircle = faceOnHands(0, 0, [handX, handY], null, 12);
   let shaft = '';
   if (frameIndex === 0) {
     // shaft behind head, toward target (drawn before head so head overlaps it)
-    shaft = `<line x1="${ox+hx}" y1="${oy+hy}" x2="${ox-46}" y2="${oy-330}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+    shaft = faceOnShaft(0, 0, handX, handY, ox-46, oy-330);
   } else if (frameIndex === 3) {
     // forward shaft lean: clubhead ahead of / at the ball, hands still trailing it slightly less
-    shaft = `<line x1="${ox+hx}" y1="${oy+hy}" x2="${ox-30}" y2="${oy-8}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+    shaft = faceOnShaft(0, 0, handX, handY, ox-30, oy-8);
   } else {
-    shaft = `<line x1="${ox+hx}" y1="${oy+hy}" x2="${ox+hx-40}" y2="${oy+hy+70}" stroke="${TC.onInk}" stroke-width="5" stroke-linecap="round"/>`;
+    shaft = faceOnShaft(0, 0, handX, handY, handX-40, handY+70);
   }
+  // Diagram-not-illustration commitment (2026-09-09, Jeremy's call): lean into
+  // real coaching-diagram language — a computed degree readout, not decoration —
+  // instead of chasing an anatomy polish this construction can't reach.
+  const scissorDeg = f.pelvis - f.chest;
   const cue = frameIndex === 1
-    ? `<path d="M ${ox-4},${oy-150} q -30,10 -50,-6" fill="none" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="2 3"/>
-       <path d="M ${ox-54},${oy-156} l -8,-4 l 2,9 Z" fill="${TC.onInk}"/>`
+    ? `<path d="M ${ox+30},${oy-160} q -50,26 -86,-8" fill="none" stroke="${TC.brass}" stroke-width="7" stroke-linecap="round"/>
+       <path d="M ${ox-56},${oy-168} l -15,-5 l 4,16 Z" fill="${TC.brass}"/>
+       ${faceOnDegreeLabel(ox-14, oy-130, scissorDeg)}`
     : (frameIndex === 2 ? `<path d="M ${ox+10},${oy-190} q -10,20 -4,40" fill="none" stroke="${TC.onInk}" stroke-width="3" stroke-dasharray="2 3"/>` : '');
+  // Static 0°-reference line (address/target line), faint, behind the figure —
+  // a real protractor baseline so the rotation numbers above have something to
+  // read against, same device real swing-plane diagrams use.
+  const referenceLine = faceOnReferenceLine(ox, oy);
 
   return frameIndex === 0
-    ? `<g>${legs}${shaft}${pelvis}${chest}${arms}${head}${handCircle}${ball}${cue}</g>`
-    : `<g>${legs}${pelvis}${chest}${arms}${head}${shaft}${handCircle}${ball}${cue}</g>`;
+    ? `<g>${referenceLine}${legs}${shaft}${pelvis}${chest}${arms}${neck}${head}${handCircle}${ball}${cue}</g>`
+    : `<g>${referenceLine}${legs}${pelvis}${chest}${arms}${neck}${head}${shaft}${handCircle}${ball}${cue}</g>`;
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -5038,10 +5049,36 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
    available because the new spec gives explicit coordinates; it does not
    change the rendered stroke width, cap style, or hand-circle treatment.
    ════════════════════════════════════════════════════════════════════ */
+/* 2026-09-09 anatomy + diagram-identity pass (Jeremy, direct: "our anatomy looks
+   terrible" then "diagram over illustration" — see TIP-CARDS-VISUAL-SPEC.md).
+   Smooth Q-curve limbs instead of sharp polyline bends, rounded-polygon torso
+   blocks instead of a hard trapezoid/rect, a connecting neck, plus real
+   coaching-diagram devices (computed degree readout, protractor reference line)
+   in place of chasing character-art likeness this construction can't reach. */
+function _vsub(a,b){return [a[0]-b[0], a[1]-b[1]];}
+function _vadd(a,b){return [a[0]+b[0], a[1]+b[1]];}
+function _vscale(a,s){return [a[0]*s, a[1]*s];}
+function _vnorm(a){const l=Math.hypot(a[0],a[1])||1; return [a[0]/l, a[1]/l];}
+function _dist(a,b){return Math.hypot(a[0]-b[0], a[1]-b[1]);}
+function roundedPolyPath(pts, r) {
+  const n = pts.length;
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n], curr = pts[i], next = pts[(i + 1) % n];
+    const rr = Math.min(r, _dist(curr, prev) / 2, _dist(curr, next) / 2);
+    const p1 = _vadd(curr, _vscale(_vnorm(_vsub(prev, curr)), rr));
+    const p2 = _vadd(curr, _vscale(_vnorm(_vsub(next, curr)), rr));
+    d += (i === 0 ? `M ${p1[0].toFixed(1)},${p1[1].toFixed(1)} ` : `L ${p1[0].toFixed(1)},${p1[1].toFixed(1)} `);
+    d += `Q ${curr[0].toFixed(1)},${curr[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)} `;
+  }
+  return d + 'Z';
+}
 function faceOnLegs(ox, oy) {
   return `
-    <polyline points="${ox-20},${oy-150} ${ox-26},${oy-86} ${ox-24},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
-    <polyline points="${ox+20},${oy-150} ${ox+26},${oy-86} ${ox+24},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M ${ox-22},${oy-152} Q ${ox-27},${oy-96} ${ox-25},${oy-70}" fill="none" stroke="${TC.onInk}" stroke-width="17" stroke-linecap="round"/>
+    <path d="M ${ox-26},${oy-86} Q ${ox-25},${oy-50} ${ox-24},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="12" stroke-linecap="round"/>
+    <path d="M ${ox+22},${oy-152} Q ${ox+27},${oy-96} ${ox+25},${oy-70}" fill="none" stroke="${TC.onInk}" stroke-width="17" stroke-linecap="round"/>
+    <path d="M ${ox+26},${oy-86} Q ${ox+25},${oy-50} ${ox+24},${oy-12}" fill="none" stroke="${TC.onInk}" stroke-width="12" stroke-linecap="round"/>
   `;
 }
 function faceOnFootDefault(ox, oy, side) {
@@ -5051,32 +5088,46 @@ function faceOnFootDefault(ox, oy, side) {
 }
 function faceOnPelvis(ox, oy, deg, bump) {
   const pivotY = oy - 170;
+  const pts = [[ox-28,oy-192],[ox+28,oy-192],[ox+38,oy-160],[ox+22,oy-144],[ox-22,oy-144],[ox-38,oy-160]];
   return `
     <g transform="translate(${bump||0},0) rotate(${deg||0} ${ox} ${pivotY})">
-      <rect x="${ox-32}" y="${oy-190}" width="64" height="42" rx="16" fill="${TC.onInk}"/>
-      <line x1="${ox-30}" y1="${oy-190}" x2="${ox+30}" y2="${oy-190}" stroke="${TC.ink}" stroke-width="4"/>
+      <path d="${roundedPolyPath(pts, 14)}" fill="${TC.onInk}"/>
+      <line x1="${ox-26}" y1="${oy-190}" x2="${ox+26}" y2="${oy-190}" stroke="${TC.ink}" stroke-width="4" stroke-linecap="round"/>
     </g>`;
 }
 function faceOnChest(ox, oy, deg) {
   const pivotY = oy - 228;
+  const pts = [[ox-38,oy-264],[ox+38,oy-255],[ox+24,oy-198],[ox-24,oy-206]];
   return `
     <g transform="rotate(${deg||0} ${ox} ${pivotY})">
-      <path d="M ${ox-40},${oy-266} L ${ox+40},${oy-256} L ${ox+30},${oy-196} L ${ox-30},${oy-206} Z" fill="${TC.onInk}"/>
-      <line x1="${ox-38}" y1="${oy-262}" x2="${ox+38}" y2="${oy-253}" stroke="${TC.ink}" stroke-width="4"/>
+      <path d="${roundedPolyPath(pts, 11)}" fill="${TC.onInk}"/>
+      <line x1="${ox-34}" y1="${oy-260}" x2="${ox+34}" y2="${oy-252}" stroke="${TC.ink}" stroke-width="4" stroke-linecap="round"/>
     </g>`;
 }
+function faceOnNeck(ox, oy) {
+  return `<rect x="${ox-11}" y="${oy-282}" width="22" height="16" rx="8" fill="${TC.onInk}"/>`;
+}
 function faceOnHead(ox, oy, dx, dy) {
-  return `<circle cx="${ox+(dx||0)}" cy="${oy-296+(dy||0)}" r="22" fill="${TC.onInk}"/>`;
+  return `<circle cx="${ox+(dx||0)}" cy="${oy-289+(dy||0)}" r="23" fill="${TC.onInk}"/>`;
+}
+function faceOnReferenceLine(ox, oy) {
+  return `<line x1="${ox}" y1="${oy-20}" x2="${ox}" y2="${oy-330}" stroke="${TC.onInk}" stroke-width="1.5" stroke-dasharray="1 6" opacity="0.35"/>`;
+}
+// Rotation-degree readout — a real coaching-diagram device, not decoration: the
+// label always comes from the actual angle used to draw the figure.
+function faceOnDegreeLabel(x, y, deg, color) {
+  return `<text x="${x}" y="${y}" text-anchor="middle" font-family="Archivo,sans-serif" font-weight="800" font-size="22" fill="${color || TC.brass}">${Math.round(Math.abs(deg))}°</text>`;
 }
 // arms: chain = [[x,y],[x,y],[x,y]] local-relative to (ox,oy); final coordinates, not
-// nested inside the chest/pelvis rotation groups.
+// nested inside the chest/pelvis rotation groups. Drawn as one smooth curve through
+// the elbow instead of a two-segment polyline.
 function faceOnArm(ox, oy, chain) {
-  const pts = chain.map(([x,y]) => `${ox+x},${oy+y}`).join(' ');
-  return `<polyline points="${pts}" fill="none" stroke="${TC.onInk}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const [s, e, h] = chain.map(([x,y]) => [ox+x, oy+y]);
+  return `<path d="M ${s[0]},${s[1]} Q ${e[0]},${e[1]} ${h[0]},${h[1]}" fill="none" stroke="${TC.onInk}" stroke-width="13" stroke-linecap="round"/>`;
 }
 function faceOnHands(ox, oy, lead, trail, rLead, rTrail) {
-  let s = `<circle cx="${ox+lead[0]}" cy="${oy+lead[1]}" r="${rLead||9}" fill="${TC.onInk}"/>`;
-  if (trail) s += `<circle cx="${ox+trail[0]}" cy="${oy+trail[1]}" r="${rTrail||9}" fill="${TC.onInk}"/>`;
+  let s = `<circle cx="${ox+lead[0]}" cy="${oy+lead[1]}" r="${rLead||11}" fill="${TC.onInk}"/>`;
+  if (trail) s += `<circle cx="${ox+trail[0]}" cy="${oy+trail[1]}" r="${rTrail||10}" fill="${TC.onInk}"/>`;
   return s;
 }
 function faceOnShaft(ox, oy, x1, y1, x2, y2) {
@@ -5415,7 +5466,7 @@ function tcSvgClose() { return `</svg>`; }
 // Banner: eyebrow + headline + small banner wren (top-right, ~78px), shared by all six.
 function tcBanner(entry, opts) {
   opts = opts || {};
-  const wren = opts.kid ? wrenKid(TC_W - 118, 150, 0.46) : wrenAdult(TC_W - 118, 140, 0.43, -1);
+  const wren = opts.kid ? wrenKid(TC_W - 118, 150, 0.46) : wrenMedallion(TC_W - 118, 140, 58);
   return `
     ${tcEyebrow(entry.eyebrow, TC_SAFE, 132, null, opts.kid)}
     ${tcHeadline(entry.headline, TC_SAFE, 214, { maxChars: opts.headlineMaxChars || 20, kid: opts.kid })}
@@ -5635,6 +5686,14 @@ function renderDiagramPositionCard(entry, opts) {
     body += tcBodyWrap(c, TC_SAFE + 56, y, { maxChars: 52, kid: opts.kid });
     y += rowLH * tcWrap(c, maxC).length + 32;
   });
+  // 2026-09-09 fix: renderDiagramSequenceCard already learned this lesson (its own
+  // in-code comment calls out "the exact silent-overflow bug is why this is now
+  // clip-guarded") but renderDiagramPositionCard never got the equivalent guard —
+  // found live on card #6, whose 3rd (2-line) checkpoint rendered past the card's
+  // bottom edge. Same fix: clip the checkpoint list to the body band instead of
+  // letting long entries silently run off the card.
+  const posClip = `<clipPath id="tcPosClip"><rect x="0" y="${BAND.bodyTop}" width="${TC_W}" height="${BAND.bodyBottom-BAND.bodyTop}"/></clipPath>`;
+  body = posClip + `<g clip-path="url(#tcPosClip)">${body}</g>`;
 
   return tcSvgOpen()
     + tcSceneBands()
