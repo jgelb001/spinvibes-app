@@ -113,6 +113,20 @@
     .card { background: var(--surf); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
     .card-title { font-weight: 700; font-size: 0.88rem; color: var(--cream); margin-bottom: 4px; }
     .card-body  { font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
+    /* Daily "Today" thoughts — promoted 2026-09-10 to carry Home on their own
+       after the tip cards were pulled (BOOKMARKS.md B15). Same content, same
+       count, larger treatment. Scoped .dt-* so nothing here touches .card. */
+    .dt-head { font-size: 0.8rem; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--cream); margin: 22px 0 10px; display: flex; align-items: center; gap: 9px; }
+    .dt-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .dt-card { background: var(--surf); border-radius: 14px; padding: 17px 18px 16px; margin-bottom: 12px; border: 1px solid var(--border); border-left: 3px solid var(--green); }
+    .dt-top { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
+    .dt-ico { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); font-size: 1.15rem; line-height: 1; }
+    .dt-title { font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 1.06rem; line-height: 1.25; letter-spacing: -0.2px; color: var(--cream); }
+    .dt-body { font-size: 0.92rem; color: var(--muted); line-height: 1.62; }
+    .dt-tag { display: inline-block; margin-top: 11px; font-size: 0.58rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); background: var(--surf2); border-radius: 6px; padding: 3px 8px; }
+    @supports not (background: color-mix(in srgb, red 15%, transparent)) {
+      .dt-ico { background: var(--surf2); }
+    }
 
     .stats-row { display: flex; gap: 8px; margin-bottom: 14px; }
     .stat { flex: 1; background: var(--surf); border-radius: 10px; padding: 11px 8px; text-align: center; border: 1px solid var(--border); }
@@ -1323,14 +1337,14 @@ function dailyThoughtsHtml(opts) {
   // Kids see ONE clearly-labeled drill (less to wade through); adults get two.
   const picks = opts.one ? [pool[i1]] : (i1===i2 ? [pool[i1]] : [pool[i1], pool[i2]]);
   const label = opts.label || 'Today';
-  return `<div class="sec-title">${label}</div>` + picks.map(t=>`
-    <div class="card" style="margin-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-        <i class="ti ${t.icon}" style="color:var(--cream);font-size:1.05rem;line-height:1;"></i>
-        <div style="font-weight:700;font-size:0.9rem;color:var(--cream);">${t.title}</div>
+  return `<div class="dt-head">${label}</div>` + picks.map(t=>`
+    <div class="dt-card">
+      <div class="dt-top">
+        <div class="dt-ico"><i class="ti ${t.icon}"></i></div>
+        <div class="dt-title">${t.title}</div>
       </div>
-      <div class="card-body">${t.body}</div>
-      <div style="display:inline-block;margin-top:8px;font-size:0.56rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--surf2);border-radius:6px;padding:2px 7px;">${t.tag}</div>
+      <div class="dt-body">${t.body}</div>
+      <div class="dt-tag">${t.tag}</div>
     </div>`).join('');
 }
 
@@ -7167,10 +7181,25 @@ function tcActiveHand() {
 // elsewhere in this app (rewards, markers) even though this isn't a reward.
 // Single source of truth so the home preview and the tips page can never show
 // two different cards on the same day.
+// ── TIP CARDS: PULLED DOWN 2026-09-10, Jeremy direct ─────────────────────────
+// "Pull down the tip cards until we get the design right."
+// Why: the s75 fixes shipped to v25 — the rebuilt figure system (defect #1) and
+// the exaggerated TC9_FRAMES rotations (defect #2) — went live WITHOUT the
+// required `pga-coaching` (Coach Jack) golf-truth review that BOOKMARKS.md B15
+// itself says must happen before diagram art ships. The exaggerated pelvis
+// angles (2/12/14/16 -> -12/26/32/38) may be teaching a distorted picture of how
+// much hip-shoulder separation actually looks like, to kids and beginners.
+// Nothing is deleted: all 43 cards, TIP_CARDS, renderTipCard() and the figure
+// primitives are untouched. Flip this to true to restore the feature exactly.
+// Restore gate: Coach Jack passes the live card + B15 defect #3 and the
+// per-template crop item are resolved.
+const TIP_CARDS_ENABLED = false;
+
 function tcTodayIndex() {
   return Math.floor(Date.now() / 86400000) % TIP_CARDS.length;
 }
 function tipsHomeInsertHtml() {
+  if (!TIP_CARDS_ENABLED) return '';   // pulled down — see TIP_CARDS_ENABLED above
   if (typeof TIP_CARDS === 'undefined' || !TIP_CARDS.length) return '';
   const entry = TIP_CARDS[tcTodayIndex()];
   const isKid = !!(profile && profile.isKid);
@@ -7189,6 +7218,16 @@ function tipsHomeInsertHtml() {
 function renderTips() {
   const el = document.getElementById('pg-tips');
   if (!el) return;
+  if (!TIP_CARDS_ENABLED) {
+    // Nothing links here while pulled down, but an installed older shell can still
+    // route to #tips. Show a real page, not a blank one.
+    el.innerHTML = `
+    <button class="back-chip" onclick="goPage('home')"><i class="ti ti-arrow-left"></i> Home</button>
+    <div style="font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:-0.5px;font-size:1.8rem;color:var(--cream);margin-bottom:3px;">Tips</div>
+    <div style="font-size:0.73rem;color:var(--muted);">Back soon &mdash; we're reworking how the tips look.</div>
+  `;
+    return;
+  }
   if (typeof TIP_CARDS === 'undefined' || !TIP_CARDS.length) { el.innerHTML = ''; return; }
   const isKid = !!(profile && profile.isKid);
   const hand = tcActiveHand();
