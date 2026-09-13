@@ -1,0 +1,9 @@
+# spinvibes-app is a PUBLIC repo. B53 (2026-09-11) found 73 QA screenshots,
+# a .DS_Store and a pre-migration backup live in it because this file did not exist.
+# push-excludes.sh is the real enforcement; this is local hygiene so they never
+# get re-committed by hand.
+.qa_tmp/
+.DS_Store
+*.bak
+*.bak-*
+*.bak2-*
