@@ -517,6 +517,23 @@ function sanitizeMembersForCloud(mem){
     return out;
   });
 }
+/* B78 (2026-09-24): the kid-site link carries an age BAND, never a child's exact age (a URL lands in
+   GitHub Pages logs and browser history). Same four bands and boundaries as iOS
+   KidDrillEngine.band(forAge:) and the kid site: k46 4-6, k68 7-8, k912 9-12, teen 13-17. A profile
+   with no local age falls back to its stored (cloud) band, else '' and the kid site keeps its own. */
+function kidBandOf(p){
+  const age = parseInt(p && p.age) || 0;
+  if (age > 0) return age < 7 ? 'k46' : (age < 9 ? 'k68' : (age < 13 ? 'k912' : 'teen'));
+  return (p && /^(k46|k68|k912|teen)$/.test(p.band||'')) ? p.band : '';
+}
+/* B80 (2026-09-24): build the kid-site link in real JS and hand it to the card as an escaped
+   data-href. It used to be string-built INSIDE an inline onclick, where a ' in a profile name broke
+   out of the JS string (esc() doesn't escape ') and p.hand wasn't escaped at all. */
+function kidSiteUrl(p, first){
+  return 'https://jgelb001.github.io/spinvibes-kid/?kid='+encodeURIComponent(activeKey)
+    +'&nick='+encodeURIComponent(first||'')+'&band='+encodeURIComponent(kidBandOf(p))
+    +'&hand='+encodeURIComponent((p&&p.hand)||'')+'&u='+encodeURIComponent(userId);
+}
 function mapMemberGoal(g){ return ({ learn:'beginner', compete:'break90' })[g] || g || 'fun'; } // keep fun/return as-is
 function deriveMemberSkill(age, rawGoal){
   if (rawGoal === 'compete') return (age < 13) ? 'some' : 'mid';
@@ -1964,7 +1981,7 @@ function renderHome() {
     <!-- kid section (Clubhouse) — prototype link-out, internal test family only while in
          beta; open to everyone once the kid section is launch-ready and COPPA-compliant -->
     ${userId==='a1aaaaaa-0000-4000-8000-000000000001' ? `
-    <div class="card" onclick="window.open('https://jgelb001.github.io/spinvibes-kid/?kid='+encodeURIComponent(activeKey)+'&nick='+encodeURIComponent('${esc(pfirst)}')+'&age='+encodeURIComponent('${p.age||''}')+'&hand='+encodeURIComponent('${p.hand||''}')+'&u='+encodeURIComponent(userId),'_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
+    <div class="card" data-href="${esc(kidSiteUrl(p, pfirst))}" onclick="window.open(this.dataset.href,'_blank')" style="cursor:pointer;background:#F6F2E7;border:1px solid #EAE3D2;display:flex;align-items:center;gap:13px;">
       <span class="mk" style="width:52px;height:52px;">
         <span class="mk-face" id="kid-chip-face" style="background:#F2A0BC;">
           <svg width="30" height="30" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#F4F1E8" stroke="#13291C" stroke-width="2.5"/><circle cx="15" cy="17" r="2.4" fill="#13291C"/><circle cx="25" cy="17" r="2.4" fill="#13291C"/><path d="M13.5 23 Q20 29.5 26.5 23" stroke="#13291C" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
