@@ -3,13 +3,12 @@
 // fetch fresh index.html on every load (the old code honored GitHub Pages'
 // max-age=600 and could serve a stale disk copy for ~10 min). The token still
 // guarantees a clean cache swap when this file's bytes change.
-const CACHE = 'spinvibes-app-v28'; // 2026-09-24: B78 kid-site link sends an age BAND, never a child's exact age + B80 link built as an escaped data-href (no inline-onclick string building). (v27 2026-09-10: tip cards PULLED DOWN + daily 'Today' thoughts promoted to fill Home. (TIP_CARDS_ENABLED=false) pending Coach Jack golf-truth review — see BOOKMARKS.md B15. MUST bump or installed clients keep serving the v25 shell with the cards still visible. // 2026-09-09: Tips page now shows only today's card (tcTodayIndex, deterministic daily rotation) instead of all 43 — was letting anyone browse the full library from the daily card tap
+const CACHE = 'spinvibes-app-v28';   // bump on every deploy; activate deletes every other spinvibes-app-* cache
 const SHELL = ['/', '/index.html', '/confirm.html', '/manifest.json'];
 
-// Delete every old spinvibes-app-* cache. Runs on activate AND lazily once per SW
-// startup: s53 found a stale v16 cache still sitting beside v18, meaning activate's
-// waitUntil didn't complete at some point (browser kill / eviction race). The lazy
-// re-run makes cleanup self-healing instead of a one-shot.
+// Delete every old spinvibes-app-* cache. Runs on activate AND lazily once per SW startup: an
+// activate whose waitUntil never completes (browser kill / eviction race) can leave a stale cache
+// beside the current one, and the lazy re-run makes cleanup self-healing instead of a one-shot.
 let _cleaned = false;
 function cleanupOldCaches() {
   return caches.keys().then(keys =>

@@ -113,9 +113,8 @@
     .card { background: var(--surf); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
     .card-title { font-weight: 700; font-size: 0.88rem; color: var(--cream); margin-bottom: 4px; }
     .card-body  { font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
-    /* Daily "Today" thoughts — promoted 2026-09-10 to carry Home on their own
-       after the tip cards were pulled (BOOKMARKS.md B15). Same content, same
-       count, larger treatment. Scoped .dt-* so nothing here touches .card. */
+    /* Daily "Today" thoughts — they carry Home on their own while the tip cards are switched
+       off (TIP_CARDS_ENABLED). Scoped .dt-* so nothing here touches .card. */
     .dt-head { font-size: 0.8rem; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--cream); margin: 22px 0 10px; display: flex; align-items: center; gap: 9px; }
     .dt-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
     .dt-card { background: var(--surf); border-radius: 14px; padding: 17px 18px 16px; margin-bottom: 12px; border: 1px solid var(--border); border-left: 3px solid var(--green); }
@@ -517,8 +516,8 @@ function sanitizeMembersForCloud(mem){
     return out;
   });
 }
-/* B78 (2026-09-24): the kid-site link carries an age BAND, never a child's exact age (a URL lands in
-   GitHub Pages logs and browser history). Same four bands and boundaries as iOS
+/* The kid-site link carries an age BAND, never a child's exact age (a URL lands in hosting request
+   logs and browser history). Same four bands and boundaries as iOS
    KidDrillEngine.band(forAge:) and the kid site: k46 4-6, k68 7-8, k912 9-12, teen 13-17. A profile
    with no local age falls back to its stored (cloud) band, else '' and the kid site keeps its own. */
 function kidBandOf(p){
@@ -526,9 +525,9 @@ function kidBandOf(p){
   if (age > 0) return age < 7 ? 'k46' : (age < 9 ? 'k68' : (age < 13 ? 'k912' : 'teen'));
   return (p && /^(k46|k68|k912|teen)$/.test(p.band||'')) ? p.band : '';
 }
-/* B80 (2026-09-24): build the kid-site link in real JS and hand it to the card as an escaped
-   data-href. It used to be string-built INSIDE an inline onclick, where a ' in a profile name broke
-   out of the JS string (esc() doesn't escape ') and p.hand wasn't escaped at all. */
+/* Build the kid-site link in real JS and hand it to the card as an escaped data-href. Never
+   string-build it inside an inline onclick: esc() doesn't escape ', so a ' in a profile name would
+   break out of the JS string. */
 function kidSiteUrl(p, first){
   return 'https://jgelb001.github.io/spinvibes-kid/?kid='+encodeURIComponent(activeKey)
     +'&nick='+encodeURIComponent(first||'')+'&band='+encodeURIComponent(kidBandOf(p))
@@ -4826,12 +4825,10 @@ function tcGlyph(name, color, size) {
    closed-leaf wing, eye+catchlight, ball ahead of beak, brass palette).
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── WREN MEDALLION (2026-09-09) — the locked Recraft "Tip Pro" character art
-   (brand-assets/wren-mascot-recraft/, session 71) as a small framed portrait in
-   the banner corner, replacing the flat coded glyph below. Jeremy's direct call:
-   the coded glyph "looks bad" — this asset already existed, already recolored
-   pixel-exact to brand tokens (background is literally --wh-brass), zero
-   additional generation cost. `wren-tip-pro-swing.png` ships alongside this file
+/* ── WREN MEDALLION — the locked "Tip Pro" character art
+   (brand-assets/wren-mascot-recraft/) as a small framed portrait in the banner
+   corner. The art is recolored pixel-exact to brand tokens (its background is
+   literally --wh-brass). `wren-tip-pro-swing.png` ships alongside this file
    (root-relative, same pattern as `_svLogo`'s `/spinvibes_logo.png` load) —
    referenced directly as an SVG <image> href, no preload needed. ── */
 function wrenMedallion(cx, cy, r) {
@@ -5003,10 +5000,8 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
   const f = TC9_FRAMES[frameIndex];
   const ox = originX || 0, oy = originY || 0;
   const [hx, hy] = f.hands;
-  // 2026-09-09: rebuilt on the SAME shared faceOn* primitives every other
-  // DIAGRAM-POSITION card uses (previously duplicated its own copies, which is
-  // exactly how #9 and the position cards drifted into two styles before) —
-  // one body vocabulary, one place to fix it.
+  // Built on the SAME shared faceOn* primitives every other DIAGRAM-POSITION card uses — one body
+  // vocabulary, one place to fix it. Private copies of the primitives drift into a second style.
   const ball = faceOnBall(ox, oy, -30, -8, 8);
   const legs = faceOnLegs(ox, oy)
     + `<line x1="${ox-42}" y1="${oy-6}" x2="${ox-14}" y2="${oy-6}" stroke="${TC.onInk}" stroke-width="10" stroke-linecap="round"/>
@@ -5043,9 +5038,8 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
   } else {
     shaft = faceOnShaft(0, 0, handX, handY, handX-40, handY+70);
   }
-  // Diagram-not-illustration commitment (2026-09-09, Jeremy's call): lean into
-  // real coaching-diagram language — a computed degree readout, not decoration —
-  // instead of chasing an anatomy polish this construction can't reach.
+  // Diagram, not illustration: real coaching-diagram language — a computed degree readout, not
+  // decoration — rather than an anatomy polish this construction can't reach.
   const scissorDeg = f.pelvis - f.chest;
   const cue = frameIndex === 1
     ? `<path d="M ${ox+30},${oy-160} q -50,26 -86,-8" fill="none" stroke="${TC.brass}" stroke-width="7" stroke-linecap="round"/>
@@ -5080,8 +5074,7 @@ function golferFaceOnFrame(frameIndex, originX, originY) {
    available because the new spec gives explicit coordinates; it does not
    change the rendered stroke width, cap style, or hand-circle treatment.
    ════════════════════════════════════════════════════════════════════ */
-/* 2026-09-09 anatomy + diagram-identity pass (Jeremy, direct: "our anatomy looks
-   terrible" then "diagram over illustration" — see TIP-CARDS-VISUAL-SPEC.md).
+/* Figure construction (see TIP-CARDS-VISUAL-SPEC.md, "diagram over illustration").
    Smooth Q-curve limbs instead of sharp polyline bends, rounded-polygon torso
    blocks instead of a hard trapezoid/rect, a connecting neck, plus real
    coaching-diagram devices (computed degree readout, protractor reference line)
@@ -5543,9 +5536,8 @@ function renderSituationCard(entry, opts) {
   y += 36;
   // Row gap tightened for kid mode only (18 -> 10): the ×1.15 kid line-height alone (32 ->
   // 37px) pushes a fully-minimal 3-row-useWhen + 1-row-notWhen SITUATION card ~12px past
-  // the 320px body band even with every row at 1 line — found on #28 kid, the only kid
-  // SITUATION card in the set, during this pass's render QA. This buys back margin without
-  // touching content. Adult (gap stays 18) is untouched.
+  // the 320px body band even with every row at 1 line (card #28, kid). This buys back margin
+  // without touching content. Adult (gap stays 18) is untouched.
   const rowGap = opts.kid ? 10 : 18;
   rows.forEach(r => {
     body += `<g transform="translate(${TC_SAFE},${y - 22})">${tcGlyph('check', TC.ink, 30)}</g>`;
@@ -5717,12 +5709,8 @@ function renderDiagramPositionCard(entry, opts) {
     body += tcBodyWrap(c, TC_SAFE + 56, y, { maxChars: 52, kid: opts.kid });
     y += rowLH * tcWrap(c, maxC).length + 32;
   });
-  // 2026-09-09 fix: renderDiagramSequenceCard already learned this lesson (its own
-  // in-code comment calls out "the exact silent-overflow bug is why this is now
-  // clip-guarded") but renderDiagramPositionCard never got the equivalent guard —
-  // found live on card #6, whose 3rd (2-line) checkpoint rendered past the card's
-  // bottom edge. Same fix: clip the checkpoint list to the body band instead of
-  // letting long entries silently run off the card.
+  // Clip the checkpoint list to the body band, same guard as renderDiagramSequenceCard: a long
+  // (2-line) checkpoint otherwise renders silently past the card's bottom edge (e.g. card #6).
   const posClip = `<clipPath id="tcPosClip"><rect x="0" y="${BAND.bodyTop}" width="${TC_W}" height="${BAND.bodyBottom-BAND.bodyTop}"/></clipPath>`;
   body = posClip + `<g clip-path="url(#tcPosClip)">${body}</g>`;
 
@@ -7198,18 +7186,12 @@ function tcActiveHand() {
 // elsewhere in this app (rewards, markers) even though this isn't a reward.
 // Single source of truth so the home preview and the tips page can never show
 // two different cards on the same day.
-// ── TIP CARDS: PULLED DOWN 2026-09-10, Jeremy direct ─────────────────────────
-// "Pull down the tip cards until we get the design right."
-// Why: the s75 fixes shipped to v25 — the rebuilt figure system (defect #1) and
-// the exaggerated TC9_FRAMES rotations (defect #2) — went live WITHOUT the
-// required `pga-coaching` (Coach Jack) golf-truth review that BOOKMARKS.md B15
-// itself says must happen before diagram art ships. The exaggerated pelvis
-// angles (2/12/14/16 -> -12/26/32/38) may be teaching a distorted picture of how
-// much hip-shoulder separation actually looks like, to kids and beginners.
-// Nothing is deleted: all 43 cards, TIP_CARDS, renderTipCard() and the figure
-// primitives are untouched. Flip this to true to restore the feature exactly.
-// Restore gate: Coach Jack passes the live card + B15 defect #3 and the
-// per-template crop item are resolved.
+// ── TIP CARDS: switched off ────────────────────────────────────────────────────
+// The feature is disabled until its diagram art passes a golf-truth (pga-coaching) review: the
+// exaggerated TC9_FRAMES pelvis angles (-12/26/32/38) may misstate how much hip-shoulder
+// separation really looks like. Nothing is deleted: all 43 cards, TIP_CARDS, renderTipCard() and
+// the figure primitives are intact. Flip this to true to restore the feature exactly. The restore
+// conditions live in the tip-cards entry of BOOKMARKS.md.
 const TIP_CARDS_ENABLED = false;
 
 function tcTodayIndex() {
@@ -7227,11 +7209,8 @@ function tipsHomeInsertHtml() {
     <div class="tip-card-wrap" onclick="goPage('tips')">${svg}</div>
   `;
 }
-// 2026-09-09, Jeremy direct: "I only want to be able to see one card a day" —
-// this used to map every TIP_CARDS entry into a scrollable library, so opening
-// the card from Home actually showed all 43. Now it shows the SAME single
-// daily card as the Home preview (tcTodayIndex()), nothing else reachable from
-// here — different card each day, wrapping back to the start after the last.
+// One card a day: shows the SAME single daily card as the Home preview (tcTodayIndex()), nothing
+// else reachable from here — a different card each day, wrapping back to the start after the last.
 function renderTips() {
   const el = document.getElementById('pg-tips');
   if (!el) return;
